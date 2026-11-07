@@ -44,7 +44,9 @@ cached download and keeps the previous data files.
 ## Automatic refresh
 
 The [Refresh Forever data](../../.github/workflows/refresh-data.yml) workflow
-runs every 3 hours (and on demand). When prices change it:
+runs hourly (and on demand). It builds only when the last scheduled success is
+older than 170 minutes, so the effective refresh is about every 3 hours even
+when GitHub delays or queues scheduled runs. When prices change it:
 
 1. commits `OribosExchange/dynamic/data.*.lua`;
 2. bumps the addon version in `OribosExchange/OribosExchange.toc` to

@@ -1,17 +1,21 @@
-# Refreshes the addon's Forever price data from Undermine Exchange every 3 hours.
+# Refreshes the addon's Forever price data from Undermine Exchange.
+# GitHub's scheduler is best-effort, so this runs hourly and refreshes when
+# the last scheduled success is older than ~3 hours. Stale queued runs are
+# cancelled by newer ones.
 name: Refresh Forever data
 
 on:
   schedule:
-    - cron: '0 */3 * * *'
+    - cron: '0 * * * *'
   workflow_dispatch:
 
 permissions:
+  actions: read
   contents: write
 
 concurrency:
   group: refresh-forever-data
-  cancel-in-progress: false
+  cancel-in-progress: true
 
 jobs:
   refresh:
@@ -28,10 +32,38 @@ jobs:
         with:
           node-version: 22
 
+      - name: Sync to latest main
+        run: |
+          git fetch origin main
+          git reset --hard origin/main
+
+      - name: Check last scheduled refresh
+        id: age
+        env:
+          GH_TOKEN: ${{ github.token }}
+        run: |
+          LAST=$(gh api "repos/${GITHUB_REPOSITORY}/actions/workflows/refresh-data.yml/runs?event=schedule&status=success&per_page=1" --jq '.workflow_runs[0].run_started_at // empty')
+          if [ -z "$LAST" ]; then
+            echo "No previous scheduled run."
+            echo "skip=false" >> "$GITHUB_OUTPUT"
+            exit 0
+          fi
+          LAST_EPOCH=$(date -d "$LAST" +%s)
+          NOW=$(date +%s)
+          AGE_MIN=$(( (NOW - LAST_EPOCH) / 60 ))
+          echo "Last scheduled success: $LAST ($AGE_MIN minutes ago)"
+          if [ "$AGE_MIN" -lt 170 ]; then
+            echo "skip=true" >> "$GITHUB_OUTPUT"
+          else
+            echo "skip=false" >> "$GITHUB_OUTPUT"
+          fi
+
       - name: Build Forever data
+        if: github.event_name == 'workflow_dispatch' || steps.age.outputs.skip != 'true'
         run: node tools/forever-data/build.js
 
       - name: Commit data and bump version
+        if: github.event_name == 'workflow_dispatch' || steps.age.outputs.skip != 'true'
         id: data
         run: |
           if git diff --quiet -- OribosExchange/dynamic; then
