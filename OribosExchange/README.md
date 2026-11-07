@@ -52,6 +52,8 @@ If you keep the folder name `OribosExchange-Forever`, the game will not see it a
 - The addon selects the house from the realm ID (or the realm-name ruleset) and the player's faction. It only loads the file for the client's region.
 - Prices are stored in copper; the tooltip uses `C_CurrencyInfo.GetCoinTextureString` so only the used coins are shown.
 
+This is the central updater for the repository: you do not need to run anything locally. The workflow commits data to `main` and replaces the rolling **latest** release asset. If you also publish to CurseForge/WoWUp, upload that release zip there.
+
 Data is a snapshot: the auction-house line is the lowest current listing, and the region line is Undermine Exchange's region median. Like the retail addon, freshness depends on the last update.
 
 ## Build it yourself
