@@ -44,7 +44,7 @@ cached download and keeps the previous data files.
 ## Automatic refresh
 
 The [Refresh Forever data](../../.github/workflows/refresh-data.yml) workflow
-runs hourly (and on demand). It builds only when the last scheduled success is
+runs hourly (and on demand). It builds only when the existing data timestamp is
 older than 170 minutes, so the effective refresh is about every 3 hours even
 when GitHub delays or queues scheduled runs. When prices change it:
 

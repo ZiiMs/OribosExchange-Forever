@@ -11,7 +11,7 @@ This is a port of the retail addon by **Erorus** (the author of Undermine Exchan
 - Region median line and auction-house line.
 - Copper precision (a 25-copper item shows as 25c, not 0s).
 - Coin **icons** (gold/silver/copper) by default, showing only the denominations used. `/oetooltip coins` switches to text.
-- Data is checked hourly by a GitHub Action and refreshed when the last scheduled run is older than about 3 hours. When prices change it publishes a **new versioned release** (with a UTC timestamp in the version), so addon managers like WowUp can see the update.
+- Data is checked hourly by a GitHub Action and refreshed when the existing data timestamp is older than about 3 hours. When prices change it publishes a **new versioned release** (with a UTC timestamp in the version), so addon managers like WowUp can see the update.
 - Same data API for other addons: `OEMarketInfo(itemId, table)` and `OETooltip()`.
 
 ## Install
@@ -56,7 +56,7 @@ If WowUp does not show an update, use **Check for updates** and make sure the so
 ## How the data gets here
 
 - `tools/forever-data/build.js` downloads Undermine Exchange's public Forever data (US/EU/TW/KR; 12/12/6/6 auction houses).
-- The data is written into `OribosExchange/dynamic/data.*.lua` and committed by the [Refresh Forever data](.github/workflows/refresh-data.yml) workflow. It checks hourly and refreshes when the last scheduled run is older than about 3 hours, so GitHub's best-effort scheduler is less likely to leave the data stale.
+- The data is written into `OribosExchange/dynamic/data.*.lua` and committed by the [Refresh Forever data](.github/workflows/refresh-data.yml) workflow. It checks hourly and refreshes when the existing data timestamp is older than about 3 hours, so GitHub's best-effort scheduler is less likely to leave the data stale.
 - When prices change, the workflow bumps the addon version to a UTC timestamp, packages the zip, and publishes a **new versioned release** marked latest.
 - The addon selects the house from the realm ID (or the realm-name ruleset) and the player's faction. It only loads the file for the client's region.
 - Prices are stored in copper; the tooltip uses `C_CurrencyInfo.GetCoinTextureString` so only the used coins are shown.
