@@ -10,4 +10,4 @@ First WoW Forever release.
 - Copper-precision prices and coin icons by default; `/oetooltip coins` switches to text.
 - `/oetooltip debug` and the `OETooltipDebug` saved variable for diagnostics.
 - `tools/forever-data/build.js` data generator and a 3-hour GitHub Actions refresh.
-- Rolling `latest` release with the packaged addon.
+- Each data refresh publishes a new timestamped addon version and GitHub release, so addon managers such as WowUp can detect updates.

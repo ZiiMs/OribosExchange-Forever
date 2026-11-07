@@ -31,7 +31,7 @@ jobs:
       - name: Build Forever data
         run: node tools/forever-data/build.js
 
-      - name: Commit data changes
+      - name: Commit data and bump version
         id: data
         run: |
           if git diff --quiet -- OribosExchange/dynamic; then
@@ -39,25 +39,33 @@ jobs:
             echo "changed=false" >> "$GITHUB_OUTPUT"
             exit 0
           fi
+
+          VERSION="1.3.20261106-forever1.$(date -u +%Y%m%d%H%M%S)"
+          sed -i "s/^## Version:.*/## Version: $VERSION/" OribosExchange/OribosExchange.toc
+
           git config user.name "github-actions[bot]"
           git config user.email "41898282+github-actions[bot]@users.noreply.github.com"
-          git add OribosExchange/dynamic/data.*.lua
-          git commit -m "Refresh Forever price data"
+          git add OribosExchange/dynamic/data.*.lua OribosExchange/OribosExchange.toc
+          git commit -m "Refresh Forever price data ($VERSION)"
           git push
+
           echo "changed=true" >> "$GITHUB_OUTPUT"
+          echo "version=$VERSION" >> "$GITHUB_OUTPUT"
 
       - name: Package addon
         if: steps.data.outputs.changed == 'true'
         run: |
-          VERSION=$(awk -F': ' '/^## Version:/ {print $2; exit}' OribosExchange/OribosExchange.toc | tr -d '\r')
+          VERSION="${{ steps.data.outputs.version }}"
           mkdir -p dist
           git archive --format=zip --prefix=OribosExchange/ -o "dist/OribosExchange-$VERSION.zip" HEAD:OribosExchange
 
-      - name: Update rolling latest release
+      - name: Create release
         if: steps.data.outputs.changed == 'true'
         env:
           GH_TOKEN: ${{ github.token }}
         run: |
-          gh release view latest >/dev/null 2>&1 || \
-            gh release create latest --title "Latest WoW Forever build" --notes "Rolling build with automatically refreshed Forever price data."
-          gh release upload latest dist/*.zip --clobber
+          VERSION="${{ steps.data.outputs.version }}"
+          gh release create "v$VERSION" "dist/OribosExchange-$VERSION.zip" \
+            --title "Oribos Exchange $VERSION" \
+            --notes "Automatic Forever price data refresh ($VERSION UTC). Prices from Undermine Exchange." \
+            --latest
