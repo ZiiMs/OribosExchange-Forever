@@ -1,0 +1,6 @@
+tools/forever-data/cache/
+tools/forever-data/refresh.log
+dist/
+*.tmp-*
+.DS_Store
+Thumbs.db

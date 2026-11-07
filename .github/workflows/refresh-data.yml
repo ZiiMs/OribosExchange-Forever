@@ -1,0 +1,63 @@
+# Refreshes the addon's Forever price data from Undermine Exchange every 3 hours.
+name: Refresh Forever data
+
+on:
+  schedule:
+    - cron: '0 */3 * * *'
+  workflow_dispatch:
+
+permissions:
+  contents: write
+
+concurrency:
+  group: refresh-forever-data
+  cancel-in-progress: false
+
+jobs:
+  refresh:
+    runs-on: ubuntu-latest
+    timeout-minutes: 15
+    steps:
+      - name: Checkout
+        uses: actions/checkout@v4
+        with:
+          fetch-depth: 0
+
+      - name: Set up Node
+        uses: actions/setup-node@v4
+        with:
+          node-version: 22
+
+      - name: Build Forever data
+        run: node tools/forever-data/build.js
+
+      - name: Commit data changes
+        id: data
+        run: |
+          if git diff --quiet -- OribosExchange/dynamic; then
+            echo "No price changes."
+            echo "changed=false" >> "$GITHUB_OUTPUT"
+            exit 0
+          fi
+          git config user.name "github-actions[bot]"
+          git config user.email "41898282+github-actions[bot]@users.noreply.github.com"
+          git add OribosExchange/dynamic/data.*.lua
+          git commit -m "Refresh Forever price data"
+          git push
+          echo "changed=true" >> "$GITHUB_OUTPUT"
+
+      - name: Package addon
+        if: steps.data.outputs.changed == 'true'
+        run: |
+          VERSION=$(awk -F': ' '/^## Version:/ {print $2; exit}' OribosExchange/OribosExchange.toc | tr -d '\r')
+          mkdir -p dist
+          git archive --format=zip --prefix=OribosExchange/ -o "dist/OribosExchange-$VERSION.zip" HEAD:OribosExchange
+
+      - name: Update rolling latest release
+        if: steps.data.outputs.changed == 'true'
+        env:
+          GH_TOKEN: ${{ github.token }}
+        run: |
+          gh release view latest >/dev/null 2>&1 || \
+            gh release create latest --title "Latest WoW Forever build" --notes "Rolling build with automatically refreshed Forever price data."
+          gh release upload latest dist/*.zip --clobber
