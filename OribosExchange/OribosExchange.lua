@@ -91,6 +91,13 @@ local function char2dec(s)
     return n
 end
 
+-- Market price from an already-cropped data record (header + selected house).
+local function blobMarket(dta)
+    local priceSize = strByte(dta, 1)
+    local offset = 3 + priceSize
+    return char2dec(strSub(dta, offset, offset + priceSize - 1))
+end
+
 local function round(num)
     return floor(num + 0.5)
 end
@@ -310,7 +317,14 @@ function OEMarketInfo(item,...)
                     testKey = dataKey .. '-' .. effectiveLevel
                 end
                 if addonTable.marketData[testKey] then
-                    dataKey = testKey
+                    -- On Forever an item-level entry can exist only because
+                    -- another ruleset/faction house has that level. If it has
+                    -- no price for the selected house, keep the base item
+                    -- price instead of hiding the auction-house line.
+                    local testData = addonTable.marketData[testKey]
+                    if not addonTable.isForever or not addonTable.marketData[dataKey] or blobMarket(testData) > 0 then
+                        dataKey = testKey
+                    end
                 end
             end
         end
@@ -451,7 +465,7 @@ local function printHelp()
     print("|cFFFFFF78market|r - " .. L["Toggle realm price line."] .. " " .. getLineStatus('market'))
     print("|cFFFFFF78region|r - " .. L["Toggle %s median line."]:format(regionName) .. " " .. getLineStatus('region'))
     print("|cFFFFFF78lastseen|r - " .. L["Toggle 'Last seen' line."] .. " " .. getLineStatus('lastSeen'))
-    print("|cFFFFFF78debug|r - " .. "Print data diagnostics.")
+    print("|cFFFFFF78debug|r - " .. "Print data diagnostics. Use debug <item link> for one item.")
 end
 
 local dataResults = {}
@@ -579,8 +593,9 @@ function SlashCmdList.ORIBOSEXCHANGE(msg)
     }
 
     local loweredMsg = string.lower(msg)
+    local debugItem = string.match(msg, "^[Dd][Ee][Bb][Uu][Gg]%s+(.+)$")
 
-    if loweredMsg == 'debug' then
+    if loweredMsg == 'debug' or debugItem then
         local md = addonTable.marketData
         local count = 0
         if md then for _ in pairs(md) do count = count + 1 end end
@@ -595,6 +610,33 @@ function SlashCmdList.ORIBOSEXCHANGE(msg)
             local info = OEMarketInfo(2589, {})
             if info then
                 print(("  sample 2589: market %s  region %s  days %s  age %s"):format(tostring(info['market']), tostring(info['region']), tostring(info['days']), tostring(info['age'])))
+            end
+        end
+        if debugItem then
+            local itemId = GetItemInfoInstant(debugItem)
+            print(("  item %s  itemid %s"):format(debugItem, tostring(itemId)))
+            if itemId then
+                local baseKey = tostring(itemId)
+                local keys = {}
+                for key in pairs(md or {}) do
+                    if key == baseKey or string.sub(key, 1, #baseKey + 1) == baseKey .. '-' then
+                        keys[#keys + 1] = key
+                    end
+                end
+                table.sort(keys)
+                print(("  keys for %s: %s"):format(baseKey, table.concat(keys, ", ")))
+                for _, key in ipairs(keys) do
+                    local dta = md[key]
+                    local size = strByte(dta, 1)
+                    local region = char2dec(strSub(dta, 2, 1 + size))
+                    local days = strByte(dta, 2 + size)
+                    local market = blobMarket(dta)
+                    print(("    %s: market=%s region=%s days=%s"):format(key, market, region, days))
+                end
+                local info = OEMarketInfo(debugItem, {})
+                if info then
+                    print(("  lookup: market=%s region=%s days=%s"):format(tostring(info['market']), tostring(info['region']), tostring(info['days'])))
+                end
             end
         end
         return

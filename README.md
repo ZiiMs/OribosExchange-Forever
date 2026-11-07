@@ -34,7 +34,7 @@ If you keep the folder name `OribosExchange-Forever`, the game will not see it a
 
 Add this repository as a GitHub source in WowUp and install **Oribos Exchange**. WowUp checks the latest published release.
 
-When prices change, the workflow publishes a new release and bumps the addon version to `1.3.20261106-forever1.<UTC timestamp>` (for example `1.3.20261106-forever1.20261107031500`). That version change is what tells WowUp an update exists; replacing a zip on an unchanged tag would not.
+When prices change, the workflow publishes a new release and bumps the addon version to `1.3.20261106-forever2.<UTC timestamp>` (for example `1.3.20261106-forever2.20261107031500`). That version change is what tells WowUp an update exists; replacing a zip on an unchanged tag would not.
 
 If WowUp does not show an update, use **Check for updates** and make sure the source points at `ZiiMs/OribosExchange-Forever` and its releases, not a fixed tag.
 

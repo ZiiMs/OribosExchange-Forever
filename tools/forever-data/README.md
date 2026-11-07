@@ -48,7 +48,7 @@ runs every 3 hours (and on demand). When prices change it:
 
 1. commits `OribosExchange/dynamic/data.*.lua`;
 2. bumps the addon version in `OribosExchange/OribosExchange.toc` to
-   `1.3.20261106-forever1.<UTC timestamp>`;
+   `1.3.20261106-forever2.<UTC timestamp>`;
 3. builds `OribosExchange-<version>.zip`;
 4. publishes a new versioned GitHub release marked latest.
 

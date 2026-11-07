@@ -472,6 +472,9 @@ async function buildRegion(region, config, houses, stateData, regionData, cacheR
     function addRecord(key, id, level) {
         const houseValues = [];
         for (let h = 0; h < houseCount; h++) houseValues.push(houseFor(h, id, level));
+        // A level-only entry with no house price adds nothing over the base
+        // item; skip it so it cannot shadow the base price in the addon.
+        if (level > 0 && !houseValues.some(v => v.price > 0)) { skipped++; return; }
         const regionPrice = regionFor(id, level);
         if (!regionPrice && !houseValues.some(v => v.price > 0)) { skipped++; return; }
 

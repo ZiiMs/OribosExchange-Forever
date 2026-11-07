@@ -1,5 +1,11 @@
 # Changelog
 
+## 1.3.20261106-forever2
+
+- Fixed item-level entries hiding the base item price on Forever. If an item-level variant has only a region price, the addon now falls back to the base auction-house price instead of showing nothing (for example Yorgen Bracers).
+- `/oetooltip debug <item link>` now reports the item ID, every data key for it, and each key's market/region price.
+- The data generator skips level entries that have no auction-house price, so they cannot shadow the base item price and the data files are smaller.
+
 ## 1.3.20261106-forever1
 
 First WoW Forever release.
