@@ -44,9 +44,10 @@ cached download and keeps the previous data files.
 ## Automatic refresh
 
 The [Refresh Forever data](../../.github/workflows/refresh-data.yml) workflow
-runs hourly (and on demand). It builds only when the existing data timestamp is
-older than 170 minutes, so the effective refresh is about every 3 hours even
-when GitHub delays or queues scheduled runs. When prices change it:
+requests a build every three hours (and on demand), at 02:37, 05:37, 08:37,
+11:37, 14:37, 17:37, 20:37 and 23:37 UTC (`37 2-23/3 * * *`). Every run
+downloads all regions; no source-data timestamp can suppress the build.
+Concurrent runs queue instead of cancelling an active publish. When prices change it:
 
 1. commits `OribosExchange/dynamic/data.*.lua`;
 2. bumps the addon version in `OribosExchange/OribosExchange.toc` to
@@ -58,6 +59,24 @@ The version bump is deliberate: addon managers (WowUp, etc.) detect updates by
 version, so replacing a zip on an unchanged tag would not trigger an update.
 
 Users install the latest release, or `git pull` if they cloned the repo.
+
+GitHub's schedule is best-effort: triggers can be delayed or dropped, especially
+at the start of an hour. Moving off minute zero reduces that risk but does not
+guarantee execution. No new release is expected when the downloaded data is unchanged.
+
+Verify the configuration and automatic delivery separately:
+
+```
+node --test tools/forever-data/*.test.js
+node tools/forever-data/check-refresh.js
+node tools/forever-data/check-refresh.js --after 2026-11-07T20:30:00Z
+```
+
+The read-only health check requires `gh` and fails unless the latest `schedule`
+run completed successfully within 195 minutes and actually ran the data build.
+`--after` requires a new scheduled event after a deployment. Manual dispatches
+never satisfy this check. Each workflow run also writes a summary showing the
+trigger, completion time, change/release status and all four source timestamps.
 
 For a local Windows refresh, `refresh.cmd` runs the builder and appends to
 `refresh.log`. Schedule it with Task Scheduler (or put a shortcut in the

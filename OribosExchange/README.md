@@ -11,7 +11,7 @@ This is a port of the retail addon by **Erorus** (the author of Undermine Exchan
 - Region median line and auction-house line.
 - Copper precision (a 25-copper item shows as 25c, not 0s).
 - Coin **icons** (gold/silver/copper) by default, showing only the denominations used. `/oetooltip coins` switches to text.
-- Data is checked hourly by a GitHub Action and refreshed when the existing data timestamp is older than about 3 hours. When prices change it publishes a **new versioned release** (with a UTC timestamp in the version), so addon managers like WowUp can see the update.
+- A GitHub Action requests a data refresh every 3 hours at :37 UTC. Every run downloads all regions, without a freshness skip. Changed prices produce a **new versioned release** (with a UTC timestamp in the version), so addon managers like WowUp can see the update. GitHub can delay or drop scheduled runs; this is not an exact-time guarantee.
 - Same data API for other addons: `OEMarketInfo(itemId, table)` and `OETooltip()`.
 
 ## Install
@@ -56,7 +56,7 @@ If WowUp does not show an update, use **Check for updates** and make sure the so
 ## How the data gets here
 
 - `tools/forever-data/build.js` downloads Undermine Exchange's public Forever data (US/EU/TW/KR; 12/12/6/6 auction houses).
-- The data is written into `OribosExchange/dynamic/data.*.lua` and committed by the [Refresh Forever data](.github/workflows/refresh-data.yml) workflow. It checks hourly and refreshes when the existing data timestamp is older than about 3 hours, so GitHub's best-effort scheduler is less likely to leave the data stale.
+- The data is written into `OribosExchange/dynamic/data.*.lua` and committed by the [Refresh Forever data](.github/workflows/refresh-data.yml) workflow. Requested times are 02:37, 05:37, 08:37, 11:37, 14:37, 17:37, 20:37 and 23:37 UTC. Minute zero is avoided to reduce scheduling contention.
 - When prices change, the workflow bumps the addon version to a UTC timestamp, packages the zip, and publishes a **new versioned release** marked latest.
 - The addon selects the house from the realm ID (or the realm-name ruleset) and the player's faction. It only loads the file for the client's region.
 - Prices are stored in copper; the tooltip uses `C_CurrencyInfo.GetCoinTextureString` so only the used coins are shown.
@@ -64,6 +64,12 @@ If WowUp does not show an update, use **Check for updates** and make sure the so
 This is the central updater for the repository: you do not need to run anything locally. The workflow commits data to `main` and publishes the new release. If you also publish to CurseForge/WoWUp, upload that release zip there.
 
 Data is a snapshot: the auction-house line is the lowest current listing, and the region line is Undermine Exchange's region median. Like the retail addon, freshness depends on the last update.
+
+To verify automatic operation, run `node tools/forever-data/check-refresh.js`
+(requires GitHub CLI). It fails if the latest automatic run is overdue or did
+not build data. A manual run or a green workflow badge does **not** establish
+that the schedule works. See the [Actions history](https://github.com/ZiiMs/OribosExchange-Forever/actions/workflows/refresh-data.yml)
+and each run's summary for the trigger, outcome and per-region timestamps.
 
 ## Build it yourself
 
