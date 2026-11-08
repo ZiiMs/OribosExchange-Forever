@@ -11,7 +11,7 @@ This is a port of the retail addon by **Erorus** (the author of Undermine Exchan
 - Region median line and auction-house line.
 - Copper precision (a 25-copper item shows as 25c, not 0s).
 - Coin **icons** (gold/silver/copper) by default, showing only the denominations used. `/oetooltip coins` switches to text.
-- A GitHub Action requests a data refresh every 3 hours at :37 UTC. Every run downloads all regions, without a freshness skip. Changed prices produce a **new versioned release** (with a UTC timestamp in the version), so addon managers like WowUp can see the update. GitHub can delay or drop scheduled runs; this is not an exact-time guarantee.
+- Railway cron triggers the GitHub build every 3 hours at :37 UTC, with native GitHub cron kept as a fallback. Every build downloads all regions, without a freshness skip. Changed prices produce a **new versioned release** (with a UTC timestamp in the version), so addon managers like WowUp can see the update. Scheduling is approximate, not an exact-time guarantee.
 - Same data API for other addons: `OEMarketInfo(itemId, table)` and `OETooltip()`.
 
 ## Install
@@ -73,8 +73,8 @@ and each run's summary for the trigger, outcome and per-region timestamps.
 
 ### Railway scheduler
 
-A one-shot [Railway cron dispatcher](tools/railway-dispatch/README.md) can
-trigger the same build every three hours independently of GitHub cron. It runs
+A one-shot [Railway cron dispatcher](tools/railway-dispatch/README.md) is configured
+to trigger the same build every three hours independently of GitHub cron. It runs
 briefly, sends an authenticated workflow dispatch, and exits. Its token stays
 in Railway's private variables. Runs are labelled **Forever prices (railway)**;
 check them with `node tools/forever-data/check-refresh.js --source railway`.

@@ -42,7 +42,7 @@ jobs:
           node-version: 22
 
       - name: Validate refresh configuration
-        run: node --test tools/forever-data/refresh-workflow.test.js
+        run: node --test tools/forever-data/*.test.js tools/railway-dispatch/*.test.js
 
       - name: Build Forever data
         run: node tools/forever-data/build.js

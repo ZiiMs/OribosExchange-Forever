@@ -12,7 +12,7 @@ Actions run to verify build/release completion.
 - Start command: image default (`node dispatch.js`).
 - Cron schedule: `37 2-23/3 * * *` — every three hours at :37 UTC.
 - Restart policy: **Never**. No healthcheck, domain, database or volume needed.
-- Watch paths: `/tools/railway-dispatch/**` only, so price-data commits do not
+- Watch paths: `/tools/railway-dispatch/**` and `/.dockerignore`, so price-data commits do not
   redeploy the dispatcher and trigger a feedback loop.
 
 Railway cron has approximate timing, not a precise SLA. It skips a slot if the
@@ -41,8 +41,30 @@ GITHUB_REF=main
 ```
 
 The workflow accepts `trigger_source=railway`, making these runs visibly
-different from a human pressing Run workflow. Native GitHub cron can remain a
-fallback until Railway execution is verified.
+different from a human pressing Run workflow. Native GitHub cron remains a
+best-effort fallback. Concurrent builds are serialized and unchanged data does
+not publish another release.
+
+Configured service: [OribosExchange-Forever on Railway](https://railway.com/project/94e6ecfb-44e5-4d45-be7f-6c6fddae9d0a).
+Project: `gregarious-kindness`, environment: `production`. Settings are applied
+directly to this existing service; no deprecated `railway.json` is required.
+An idle cron service with zero running replicas is expected, not an outage.
+Rotate the GitHub token privately before its expiry.
+
+## Deployment verification (2026-11-08 UTC)
+
+- Docker build deployed successfully on Railway using the repository image.
+- A manually started service run at 00:13:53 dispatched GitHub run
+  [42428800877](https://github.com/ZiiMs/OribosExchange-Forever/actions/runs/42428800877),
+  which built data and published release `v1.3.20261106-forever2.20261108001432`.
+- The timer was tested on a temporary five-minute cadence. Without another
+  manual start, Railway ran at 00:20:10; its cron history recorded
+  `succeeded` at 00:20:12. The matching GitHub run
+  [42429280247](https://github.com/ZiiMs/OribosExchange-Forever/actions/runs/42429280247)
+  also completed successfully. The container exited with zero running replicas.
+- The production cron was restored to `37 2-23/3 * * *` afterward. This verifies
+  a real timed execution and the configured three-hour interval, not a guarantee
+  of future runs or exact-to-the-minute delivery.
 
 ## Verify
 
