@@ -71,6 +71,16 @@ not build data. A manual run or a green workflow badge does **not** establish
 that the schedule works. See the [Actions history](https://github.com/ZiiMs/OribosExchange-Forever/actions/workflows/refresh-data.yml)
 and each run's summary for the trigger, outcome and per-region timestamps.
 
+### Railway scheduler
+
+A one-shot [Railway cron dispatcher](tools/railway-dispatch/README.md) can
+trigger the same build every three hours independently of GitHub cron. It runs
+briefly, sends an authenticated workflow dispatch, and exits. Its token stays
+in Railway's private variables. Runs are labelled **Forever prices (railway)**;
+check them with `node tools/forever-data/check-refresh.js --source railway`.
+Verify unattended timing in Railway's cron history as well; an accepted API
+request alone does not prove the build finished or the timer fired.
+
 ## Build it yourself
 
 ```sh

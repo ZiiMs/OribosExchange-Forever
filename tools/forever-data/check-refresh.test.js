@@ -29,3 +29,11 @@ test('an old success cannot verify a newly deployed schedule', () => {
     const cutoff = Date.parse('2026-11-07T17:00:00Z');
     assert.equal(evaluateScheduledRun([automatic], now, 600, cutoff).ok, false);
 });
+
+test('Railway health only accepts a Railway-labelled dispatch, not a human manual run', () => {
+    const dispatched = { ...automatic, event: 'workflow_dispatch', display_title: 'Forever prices (railway)',
+        created_at: '2026-11-07T20:00:00Z', updated_at: '2026-11-07T20:01:00Z' };
+    assert.equal(evaluateScheduledRun([dispatched], now, 195, 0, 'railway').ok, true);
+    assert.equal(evaluateScheduledRun([{ ...dispatched, display_title: 'Forever prices (manual)' }], now, 195, 0, 'railway').ok, false);
+    assert.equal(evaluateScheduledRun([dispatched], now).ok, false);
+});

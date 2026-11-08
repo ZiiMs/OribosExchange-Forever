@@ -2,13 +2,21 @@
 # Request a refresh every three hours, away from GitHub's minute-zero peak.
 # Scheduled delivery is best-effort; a manual success does not verify cron.
 name: Refresh Forever data
-run-name: Forever prices (${{ github.event_name }})
+run-name: Forever prices (${{ github.event_name == 'workflow_dispatch' && inputs.trigger_source || github.event_name }})
 
 on:
   schedule:
     # 02:37, 05:37, 08:37, 11:37, 14:37, 17:37, 20:37, 23:37 UTC.
     - cron: '37 2-23/3 * * *'
   workflow_dispatch:
+    inputs:
+      trigger_source:
+        description: Who requested this refresh
+        type: choice
+        options:
+          - manual
+          - railway
+        default: manual
 
 permissions:
   contents: write
@@ -83,13 +91,16 @@ jobs:
         if: always()
         env:
           TRIGGER: ${{ github.event_name }}
+          TRIGGER_SOURCE: ${{ inputs.trigger_source }}
           CHANGED: ${{ steps.data.outputs.changed }}
           VERSION: ${{ steps.data.outputs.version }}
           JOB_STATUS: ${{ job.status }}
         run: |
           {
             echo '## Forever price refresh'
-            echo "- Trigger: $TRIGGER (only schedule proves the automatic trigger ran)"
+            echo "- GitHub event: $TRIGGER"
+            echo "- Dispatch source: ${TRIGGER_SOURCE:-native GitHub scheduler}"
+            echo '- A Railway-labelled dispatch verifies the connection; Railway cron logs verify unattended scheduling.'
             echo "- Finished: $(date -u +%FT%TZ)"
             echo '- Requested schedule: every three hours at :37 UTC'
             echo "- Job: $JOB_STATUS"
