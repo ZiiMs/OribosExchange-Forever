@@ -47,6 +47,10 @@ const REGIONS = {
     krf: { addonRegion: 'KR', currentRegion: 2, file: 'data.kr.lua' },
 };
 
+// Two refresh cycles. A run that is still green must not publish source data
+// older than this, even when every HTTP request succeeds.
+const MAX_SOURCE_AGE_MINUTES = 6 * 60;
+
 const RULESET_BY_SLUG = {
     pvp: 'PvP',
     pve: 'Normal',
@@ -813,12 +817,14 @@ async function main() {
         });
     }
 
-    let wrote = 0;
+    const failed = [];
+    let newestSource = 0;
     for (const region of args.regions) {
         const config = REGIONS[region];
         const houses = (regions[region] || []).sort((a, b) => a.id - b.id);
         if (!houses.length) {
             warn(`${region}: no realms found`);
+            failed.push(region);
             continue;
         }
         log(`\n${region} (${config.addonRegion}): ${houses.length} auction houses`);
@@ -835,18 +841,29 @@ async function main() {
         const result = await buildRegion(region, config, houses, stateData, regionData, args.cache);
         if (!result.records.length) {
             warn(`${region}: no price records; leaving the existing file untouched`);
+            failed.push(region);
             continue;
         }
         const written = writeLua(region, config, houses, result.records, result.houseTimes);
-        wrote++;
         const baseCount = result.records.filter(r => !r.key.includes('-')).length;
         log(`  -> ${path.basename(written.outPath)}: ${result.records.length} entries (${baseCount} base), ${(written.bytes / 1024).toFixed(0)} KiB`);
         const maxTime = Math.max(...result.houseTimes);
+        newestSource = Math.max(newestSource, maxTime);
         log(`  newest house scan: ${new Date(maxTime * 1000).toISOString()}`);
     }
 
-    if (wrote === 0) {
-        throw new Error('No region could be refreshed: every download failed and no cached copy was available.');
+    if (failed.length) {
+        throw new Error(`Refresh incomplete: ${failed.join(', ')} produced no data (wrote ${args.regions.length - failed.length} of ${args.regions.length} regions).`);
+    }
+
+    if (!args.offline) {
+        if (!newestSource) {
+            throw new Error('Source data is stale: no auction-house scan timestamp was found.');
+        }
+        const ageMinutes = (Date.now() / 1000 - newestSource) / 60;
+        if (ageMinutes > MAX_SOURCE_AGE_MINUTES) {
+            throw new Error(`Source data is stale: newest auction-house scan is ${ageMinutes.toFixed(0)} minutes old (limit ${MAX_SOURCE_AGE_MINUTES}).`);
+        }
     }
 }
 

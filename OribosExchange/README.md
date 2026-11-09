@@ -62,6 +62,7 @@ If WowUp does not show an update, use **Check for updates** and make sure the so
 - `tools/forever-data/build.js` downloads Undermine Exchange's public Forever data (US/EU/TW/KR; 12/12/6/6 auction houses).
 - The data is written into `OribosExchange/dynamic/data.*.lua` and committed by the [Refresh Forever data](.github/workflows/refresh-data.yml) workflow. The [Railway cron dispatcher](tools/railway-dispatch/README.md) requests a build at 02:37, 05:37, 08:37, 11:37, 14:37, 17:37, 20:37 and 23:37 UTC; GitHub's own schedule trigger is disabled. Minute zero is avoided to reduce scheduling contention.
 - When prices change, the workflow bumps the addon version to a UTC timestamp, packages the zip, and publishes a **new versioned release** marked latest.
+- A refresh fails instead of publishing when any region produces no data or the newest source scan is over six hours old, so a green run means every region is fresh.
 - The addon selects the house from the realm ID (or the realm-name ruleset) and the player's faction. It only loads the file for the client's region.
 - Feature and fix releases update `OribosExchange/WhatsNew.lua` and bump its `revision`; the panel opens once per account. Data-only builds leave that file unchanged, so they never open the panel and print the data sync status in chat instead.
 - Prices are stored in copper; the tooltip uses `C_CurrencyInfo.GetCoinTextureString` so only the used coins are shown.
