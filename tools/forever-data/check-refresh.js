@@ -3,13 +3,13 @@
 // Read-only check. Unlike a manual dispatch, this verifies automatic delivery.
 const { execFileSync } = require('node:child_process');
 
-function evaluateScheduledRun(runs, now = Date.now(), maxAgeMinutes = 195, after = 0, source = 'github') {
+function evaluateScheduledRun(runs, now = Date.now(), maxAgeMinutes = 195, after = 0, source = 'railway') {
     const scheduled = runs.filter(run => source === 'railway'
         ? run.event === 'workflow_dispatch' && run.display_title === 'Forever prices (railway)'
         : run.event === 'schedule')
         .sort((a, b) => Date.parse(b.created_at) - Date.parse(a.created_at));
     const run = scheduled[0];
-    if (!run) return { ok: false, reason: 'No automatic schedule run exists.' };
+    if (!run) return { ok: false, reason: 'No automatic run exists for this source.' };
     if (Date.parse(run.created_at) < after) {
         return { ok: false, reason: 'No automatic run has been created since the requested cutoff.', run };
     }
@@ -27,7 +27,7 @@ function main() {
     const args = process.argv.slice(2);
     const getArg = (flag, fallback) => args.includes(flag) ? args[args.indexOf(flag) + 1] : fallback;
     const repo = getArg('--repo', 'ZiiMs/OribosExchange-Forever');
-    const source = getArg('--source', 'github');
+    const source = getArg('--source', 'railway');
     if (!['github', 'railway'].includes(source)) throw new Error('--source must be github or railway');
     const afterText = getArg('--after', '1970-01-01T00:00:00Z');
     const after = Date.parse(afterText);

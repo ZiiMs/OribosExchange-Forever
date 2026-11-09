@@ -24,11 +24,15 @@
 
 const fs = require('fs');
 const path = require('path');
+const http2 = require('node:http2');
+const zlib = require('node:zlib');
+const { STATUS_CODES } = require('node:http');
 
 const SITE = 'https://undermine.exchange';
 const HEADERS = {
     accept: 'application/json, text/plain, */*',
     'accept-language': 'en-US,en;q=0.9',
+    'accept-encoding': 'gzip',
     referer: SITE + '/',
     'user-agent':
         'Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 ' +
@@ -142,6 +146,63 @@ process.on('exit', releaseLock);
 // HTTP + cache
 // ---------------------------------------------------------------------------
 
+// Undermine Exchange rejects HTTP/1.1 requests for /data/*.bin with 403 and
+// serves the same files over HTTP/2, so downloads use node:http2. Replies are
+// shaped like the small part of the fetch() Response interface this file uses.
+function request(url, headers) {
+    const target = new URL(url);
+    return new Promise((resolve, reject) => {
+        const client = http2.connect(target.origin);
+        let settled = false;
+        const finish = (fn, value) => {
+            if (settled) return;
+            settled = true;
+            client.destroy();
+            fn(value);
+        };
+        client.on('error', error => finish(reject, error));
+
+        const stream = client.request({
+            ':method': 'GET',
+            ':path': target.pathname + target.search,
+            ...headers,
+        });
+        stream.setTimeout(20000, () => {
+            stream.close(http2.constants.NGHTTP2_CANCEL);
+            finish(reject, new Error('Request timed out'));
+        });
+
+        let status = 0;
+        let responseHeaders = {};
+        const chunks = [];
+        stream.on('response', h => { status = h[':status']; responseHeaders = h; });
+        stream.on('data', chunk => chunks.push(chunk));
+        stream.on('end', () => {
+            let body = Buffer.concat(chunks);
+            if (status !== 304 && body.length) {
+                const encoding = String(responseHeaders['content-encoding'] || '').toLowerCase();
+                try {
+                    if (encoding === 'gzip') body = zlib.gunzipSync(body);
+                    else if (encoding === 'deflate') body = zlib.inflateSync(body);
+                    else if (encoding === 'br') body = zlib.brotliDecompressSync(body);
+                } catch (error) {
+                    finish(reject, error);
+                    return;
+                }
+            }
+            finish(resolve, {
+                status,
+                statusText: STATUS_CODES[status] || '',
+                ok: status >= 200 && status < 300,
+                headers: { get: name => responseHeaders[String(name).toLowerCase()] ?? null },
+                arrayBuffer: async () => body,
+            });
+        });
+        stream.on('error', error => finish(reject, error));
+        stream.end();
+    });
+}
+
 async function fetchBuffer(url, cachePath) {
     if (args.offline) {
         if (!fs.existsSync(cachePath)) throw new Error(`Offline and not cached: ${url}`);
@@ -155,7 +216,7 @@ async function fetchBuffer(url, cachePath) {
             if (fs.existsSync(cachePath)) {
                 headers['if-modified-since'] = fs.statSync(cachePath).mtime.toUTCString();
             }
-            const res = await fetch(url, { headers });
+            const res = await request(url, headers);
             if (res.status === 304 && fs.existsSync(cachePath)) {
                 return fs.readFileSync(cachePath);
             }
@@ -282,7 +343,7 @@ function beBytes(value, size) {
     const out = new Array(size).fill(0);
     let n = Math.max(0, Math.floor(Number(value) || 0));
     for (let i = size - 1; i >= 0; i--) {
-        out[i] = n & 0xff;
+        out[i] = n % 256;
         n = Math.floor(n / 256);
     }
     return out;
@@ -298,7 +359,9 @@ function bytesFor(value) {
     if (value < 256) return 1;
     if (value < 65536) return 2;
     if (value < 16777216) return 3;
-    return 4;
+    if (value < 4294967296) return 4;
+    if (value < 1099511627776) return 5;
+    return 6;
 }
 
 function median(values) {
@@ -490,7 +553,7 @@ async function buildRegion(region, config, houses, stateData, regionData, cacheR
         for (let h = 0; h < houseCount; h++) {
             const got = cropDecode(blob, h);
             if (got.region !== regionPrice || got.days !== houseValues[h].days || got.market !== houseValues[h].price) {
-                throw new Error(`${key} house ${h}: round-trip mismatch`);
+                throw new Error(`${key} house ${h}: round-trip mismatch (region ${got.region}/${regionPrice}, days ${got.days}/${houseValues[h].days}, market ${got.market}/${houseValues[h].price}, size ${size})`);
             }
         }
         records.push({ key, blob, regionPrice, houses: houseValues });
@@ -750,6 +813,7 @@ async function main() {
         });
     }
 
+    let wrote = 0;
     for (const region of args.regions) {
         const config = REGIONS[region];
         const houses = (regions[region] || []).sort((a, b) => a.id - b.id);
@@ -774,10 +838,15 @@ async function main() {
             continue;
         }
         const written = writeLua(region, config, houses, result.records, result.houseTimes);
+        wrote++;
         const baseCount = result.records.filter(r => !r.key.includes('-')).length;
         log(`  -> ${path.basename(written.outPath)}: ${result.records.length} entries (${baseCount} base), ${(written.bytes / 1024).toFixed(0)} KiB`);
         const maxTime = Math.max(...result.houseTimes);
         log(`  newest house scan: ${new Date(maxTime * 1000).toISOString()}`);
+    }
+
+    if (wrote === 0) {
+        throw new Error('No region could be refreshed: every download failed and no cached copy was available.');
     }
 }
 

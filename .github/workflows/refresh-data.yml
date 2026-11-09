@@ -1,13 +1,12 @@
 # Refreshes the addon's Forever price data from Undermine Exchange.
-# Request a refresh every three hours, away from GitHub's minute-zero peak.
-# Scheduled delivery is best-effort; a manual success does not verify cron.
+# The Railway cron dispatcher requests a refresh every three hours, away from
+# GitHub's minute-zero peak. GitHub's own schedule trigger is intentionally
+# absent: it fired late (or not at all) and duplicated Railway's slots.
 name: Refresh Forever data
-run-name: Forever prices (${{ github.event_name == 'workflow_dispatch' && inputs.trigger_source || github.event_name }})
+run-name: Forever prices (${{ inputs.trigger_source }})
 
 on:
-  schedule:
-    # 02:37, 05:37, 08:37, 11:37, 14:37, 17:37, 20:37, 23:37 UTC.
-    - cron: '37 2-23/3 * * *'
+  # Railway only. See tools/railway-dispatch/README.md for the dispatcher.
   workflow_dispatch:
     inputs:
       trigger_source:
@@ -99,10 +98,10 @@ jobs:
           {
             echo '## Forever price refresh'
             echo "- GitHub event: $TRIGGER"
-            echo "- Dispatch source: ${TRIGGER_SOURCE:-native GitHub scheduler}"
+            echo "- Dispatch source: ${TRIGGER_SOURCE:-manual}"
             echo '- A Railway-labelled dispatch verifies the connection; Railway cron logs verify unattended scheduling.'
             echo "- Finished: $(date -u +%FT%TZ)"
-            echo '- Requested schedule: every three hours at :37 UTC'
+            echo '- Scheduler: Railway cron, every three hours at :37 UTC'
             echo "- Job: $JOB_STATUS"
             echo "- Data changed: ${CHANGED:-not determined}"
             echo "- Release version: ${VERSION:-none}"

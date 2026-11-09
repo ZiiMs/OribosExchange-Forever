@@ -41,13 +41,23 @@ The script detects the repository layout and writes to
 If Undermine Exchange is unreachable, the script falls back to the last
 cached download and keeps the previous data files.
 
+Undermine Exchange serves `/data/*.bin` only over HTTP/2; the same URL answers
+HTTP/1.1 with `403 Forbidden`. The builder therefore downloads through
+`node:http2` and decompresses the gzip response. If every region fails and no
+cached copy exists, the script exits nonzero, so the workflow shows a failed
+refresh instead of silently keeping stale data.
+
 ## Automatic refresh
 
 The [Refresh Forever data](../../.github/workflows/refresh-data.yml) workflow
-requests a build every three hours (and on demand), at 02:37, 05:37, 08:37,
-11:37, 14:37, 17:37, 20:37 and 23:37 UTC (`37 2-23/3 * * *`). Every run
-downloads all regions; no source-data timestamp can suppress the build.
-Concurrent runs queue instead of cancelling an active publish. When prices change it:
+is dispatched by the [Railway cron dispatcher](../railway-dispatch/README.md)
+every three hours at 02:37, 05:37, 08:37, 11:37, 14:37, 17:37, 20:37 and
+23:37 UTC (`37 2-23/3 * * *`), and can be started by hand. GitHub's own
+schedule trigger is deliberately disabled: it delivered runs 16 minutes to
+2.6 hours late, after the Railway run for the same slot, so it duplicated work
+instead of acting as a fallback. Every run downloads all regions; no
+source-data timestamp can suppress the build. Concurrent runs queue instead of
+cancelling an active publish. When prices change it:
 
 1. commits `OribosExchange/dynamic/data.*.lua`;
 2. bumps the addon version in `OribosExchange/OribosExchange.toc` to
@@ -60,9 +70,10 @@ version, so replacing a zip on an unchanged tag would not trigger an update.
 
 Users install the latest release, or `git pull` if they cloned the repo.
 
-GitHub's schedule is best-effort: triggers can be delayed or dropped, especially
-at the start of an hour. Moving off minute zero reduces that risk but does not
-guarantee execution. No new release is expected when the downloaded data is unchanged.
+Railway cron timing is approximate: it can drift by a few minutes and skips a
+slot if the previous dispatcher process is still running. GitHub is no longer a
+secondary timer, so an outage there leaves Railway as the only scheduler. No new
+release is expected when the downloaded data is unchanged.
 
 Verify the configuration and automatic delivery separately:
 
@@ -72,11 +83,13 @@ node tools/forever-data/check-refresh.js
 node tools/forever-data/check-refresh.js --after 2026-11-07T20:30:00Z
 ```
 
-The read-only health check requires `gh` and fails unless the latest `schedule`
-run completed successfully within 195 minutes and actually ran the data build.
-`--after` requires a new scheduled event after a deployment. Manual dispatches
-never satisfy this check. Each workflow run also writes a summary showing the
-trigger, completion time, change/release status and all four source timestamps.
+The read-only health check requires `gh` and — by default — fails unless the
+latest Railway-labelled dispatch completed successfully within 195 minutes and
+actually ran the data build. `--source github` checks the retired GitHub
+schedule instead. `--after` requires a new run after a deployment. Manual
+dispatches never satisfy the Railway check. Each workflow run also writes a
+summary showing the trigger, completion time, change/release status and all four
+source timestamps.
 
 For a local Windows refresh, `refresh.cmd` runs the builder and appends to
 `refresh.log`. Schedule it with Task Scheduler (or put a shortcut in the

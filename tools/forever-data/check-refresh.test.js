@@ -11,23 +11,23 @@ const automatic = {
 
 test('the reported incident is overdue even with a recent manual success', () => {
     const manual = { ...automatic, event: 'workflow_dispatch', updated_at: '2026-11-07T20:23:00Z' };
-    const result = evaluateScheduledRun([automatic, manual], now);
+    const result = evaluateScheduledRun([automatic, manual], now, 195, 0, 'github');
     assert.equal(result.ok, false);
     assert.match(result.reason, /222.9 minutes old/);
 });
 
 test('only a recent successful automatic run passes', () => {
-    assert.equal(evaluateScheduledRun([], now).ok, false);
+    assert.equal(evaluateScheduledRun([], now, 195, 0, 'github').ok, false);
     const recent = { ...automatic, created_at: '2026-11-07T20:00:00Z', updated_at: '2026-11-07T20:01:00Z' };
-    assert.equal(evaluateScheduledRun([recent], now).ok, true);
-    assert.equal(evaluateScheduledRun([{ ...recent, event: 'workflow_dispatch' }], now).ok, false);
-    assert.equal(evaluateScheduledRun([{ ...recent, conclusion: 'failure' }], now).ok, false);
-    assert.equal(evaluateScheduledRun([{ ...recent, status: 'queued', conclusion: null }], now).ok, false);
+    assert.equal(evaluateScheduledRun([recent], now, 195, 0, 'github').ok, true);
+    assert.equal(evaluateScheduledRun([{ ...recent, event: 'workflow_dispatch' }], now, 195, 0, 'github').ok, false);
+    assert.equal(evaluateScheduledRun([{ ...recent, conclusion: 'failure' }], now, 195, 0, 'github').ok, false);
+    assert.equal(evaluateScheduledRun([{ ...recent, status: 'queued', conclusion: null }], now, 195, 0, 'github').ok, false);
 });
 
 test('an old success cannot verify a newly deployed schedule', () => {
     const cutoff = Date.parse('2026-11-07T17:00:00Z');
-    assert.equal(evaluateScheduledRun([automatic], now, 600, cutoff).ok, false);
+    assert.equal(evaluateScheduledRun([automatic], now, 600, cutoff, 'github').ok, false);
 });
 
 test('Railway health only accepts a Railway-labelled dispatch, not a human manual run', () => {
@@ -35,5 +35,6 @@ test('Railway health only accepts a Railway-labelled dispatch, not a human manua
         created_at: '2026-11-07T20:00:00Z', updated_at: '2026-11-07T20:01:00Z' };
     assert.equal(evaluateScheduledRun([dispatched], now, 195, 0, 'railway').ok, true);
     assert.equal(evaluateScheduledRun([{ ...dispatched, display_title: 'Forever prices (manual)' }], now, 195, 0, 'railway').ok, false);
-    assert.equal(evaluateScheduledRun([dispatched], now).ok, false);
+    assert.equal(evaluateScheduledRun([dispatched], now).ok, true);
+    assert.equal(evaluateScheduledRun([dispatched], now, 195, 0, 'github').ok, false);
 });

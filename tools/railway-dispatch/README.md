@@ -41,9 +41,10 @@ GITHUB_REF=main
 ```
 
 The workflow accepts `trigger_source=railway`, making these runs visibly
-different from a human pressing Run workflow. Native GitHub cron remains a
-best-effort fallback. Concurrent builds are serialized and unchanged data does
-not publish another release.
+different from a human pressing Run workflow. Railway is the only unattended
+scheduler; GitHub's native cron is disabled so it cannot duplicate a slot.
+Concurrent builds are serialized and unchanged data does not publish another
+release.
 
 Configured service: [OribosExchange-Forever on Railway](https://railway.com/project/94e6ecfb-44e5-4d45-be7f-6c6fddae9d0a).
 Project: `gregarious-kindness`, environment: `production`. Settings are applied
