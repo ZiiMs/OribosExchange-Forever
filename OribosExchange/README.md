@@ -9,6 +9,7 @@ This is a port of the retail addon by **Erorus** (the author of Undermine Exchan
 - Auction-house prices in item tooltips, outside the auction house too.
 - Separate prices for every Forever auction house: `PvP`, `Normal`, `Roleplay`, `Roleplay PvP` × `Alliance`, `Horde`, `Neutral`.
 - Region median line and auction-house line.
+- Hold **Shift** while hovering a stack to see the **total value of the stack** instead of the per-item price: the realm and region lines are multiplied by the stack size and marked `xN` (for example `Realm x20`). The line updates when Shift is pressed or released without re-hovering.
 - Copper precision (a 25-copper item shows as 25c, not 0s).
 - Coin **icons** (gold/silver/copper) by default, showing only the denominations used. `/oetooltip coins` switches to text.
 - Railway cron triggers the GitHub build every 3 hours at :37 UTC, with native GitHub cron kept as a fallback. Every build downloads all regions, without a freshness skip. Changed prices produce a **new versioned release** (with a UTC timestamp in the version), so addon managers like WowUp can see the update. Scheduling is approximate, not an exact-time guarantee.

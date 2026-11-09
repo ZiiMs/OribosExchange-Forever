@@ -50,6 +50,7 @@ local tinsert, tonumber = tinsert, tonumber
 local strLen, strByte, strSub = string.len, string.byte, string.sub
 local GetItemInfoInstant = C_Item.GetItemInfoInstant
 local GetDetailedItemLevelInfo = C_Item.GetDetailedItemLevelInfo
+local issecretvalue = rawget(_G, "issecretvalue")
 local PET_CAGE = 82800
 local tooltipsSettings = {}
 
@@ -408,7 +409,22 @@ local LibExtraTip = LibStub("LibExtraTip-1")
 local regionName = L["Regional"]
 local realmName = L["Realm"]
 
-local function buildExtraTip(tooltip, pricingData)
+-- Stack size passed by LibExtraTip for the tooltip's item, as a positive whole number.
+local function stackQuantity(quantity)
+    if issecretvalue and issecretvalue(quantity) then return 1 end
+    quantity = floor(tonumber(quantity) or 1)
+    return quantity > 0 and quantity or 1
+end
+
+-- The label for a price line, marked with the stack size when its value is a stack total.
+local function priceLabel(label, quantity)
+    if quantity > 1 then
+        return label .. '|cff33ff99 x' .. quantity .. '|r'
+    end
+    return label
+end
+
+local function buildExtraTip(tooltip, pricingData, quantity)
     local r,g,b = .9,.8,.5
 
     if pricingData['breed'] and breedPoints[pricingData['breed']] and qualityRGB[pricingData['quality']] then
@@ -426,12 +442,15 @@ local function buildExtraTip(tooltip, pricingData)
         LibExtraTip:AddLine(tooltip,L["As of %s ago:"]:format(SecondsToTime(pricingData['age'],pricingData['age']>60)),r,g,b,true)
     end
 
+    -- Holding Shift prices the whole stack instead of a single item.
+    local stack = IsShiftKeyDown() and stackQuantity(quantity) or 1
+
     if pricingData['market'] and pricingData['market'] > 0 and not tooltipsSettings['disable-market'] then
-        LibExtraTip:AddDoubleLine(tooltip,realmName,coins(pricingData['market']),r,g,b,nil,nil,nil,true)
+        LibExtraTip:AddDoubleLine(tooltip,priceLabel(realmName, stack),coins(pricingData['market'] * stack),r,g,b,nil,nil,nil,true)
     end
 
     if pricingData['region'] and not tooltipsSettings['disable-region'] then
-        LibExtraTip:AddDoubleLine(tooltip,regionName,coins(pricingData['region']),r,g,b,nil,nil,nil,true)
+        LibExtraTip:AddDoubleLine(tooltip,priceLabel(regionName, stack),coins(pricingData['region'] * stack),r,g,b,nil,nil,nil,true)
     end
 
     if not tooltipsSettings['disable-lastSeen'] then
@@ -466,6 +485,7 @@ local function printHelp()
     print("|cFFFFFF78region|r - " .. L["Toggle %s median line."]:format(regionName) .. " " .. getLineStatus('region'))
     print("|cFFFFFF78lastseen|r - " .. L["Toggle 'Last seen' line."] .. " " .. getLineStatus('lastSeen'))
     print("|cFFFFFF78debug|r - " .. "Print data diagnostics. Use debug <item link> for one item.")
+    print(prettyName .. " - " .. L["Hold Shift over a stack to show its total value."])
 end
 
 local dataResults = {}
@@ -480,8 +500,23 @@ local function onTooltipSetItem(tooltip, itemLink, quantity)
         return
     end
 
-    buildExtraTip(tooltip, dataResults)
+    buildExtraTip(tooltip, dataResults, quantity)
 end
+
+-- Pressing or releasing Shift changes a price line between one item and the whole stack.
+-- Refresh the tooltip already on screen so it does not have to be re-hovered.
+local stackWatcher = CreateFrame("Frame")
+stackWatcher:RegisterEvent("MODIFIER_STATE_CHANGED")
+stackWatcher:SetScript("OnEvent", function(_, _, key)
+    if key ~= "LSHIFT" and key ~= "RSHIFT" then return end
+    if not tooltipsEnabled or not addonTable.marketData then return end
+    if not GameTooltip:IsShown() or not GameTooltip.RefreshData then return end
+
+    local additional = LibExtraTip:GetTooltipAdditional(GameTooltip)
+    if not additional or stackQuantity(additional.quantity) < 2 then return end
+
+    GameTooltip:RefreshData()
+end)
 
 local eventframe = CreateFrame("FRAME",addonName.."Events")
 

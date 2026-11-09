@@ -1,5 +1,9 @@
 # Changelog
 
+## Unreleased
+
+- Hold Shift while hovering a stack to show the total value of the stack on the realm and region lines, marked `xN`. An open tooltip updates when Shift is pressed or released.
+
 ## 1.3.20261106-forever2
 
 - Fixed item-level entries hiding the base item price on Forever. If an item-level variant has only a region price, the addon now falls back to the base auction-house price instead of showing nothing (for example Yorgen Bracers).
