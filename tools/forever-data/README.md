@@ -43,9 +43,11 @@ cached download and keeps the previous data files.
 
 Undermine Exchange serves `/data/*.bin` only over HTTP/2; the same URL answers
 HTTP/1.1 with `403 Forbidden`. The builder therefore downloads through
-`node:http2` and decompresses the gzip response. If every region fails and no
-cached copy exists, the script exits nonzero, so the workflow shows a failed
-refresh instead of silently keeping stale data.
+`node:http2` and decompresses the gzip response. A run fails, and commits
+nothing, when any requested region produces no data or when the newest
+auction-house scan is more than six hours old, so a green run always means
+every region refreshed from fresh source data. `--offline` builds from cache
+on purpose and skips the freshness check.
 
 ## Automatic refresh
 
