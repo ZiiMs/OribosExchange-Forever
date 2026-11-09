@@ -43,7 +43,8 @@ This is useful for other addons (Auctioneer, TSM, etc) that have their own fancy
 
 local addonName, addonTable = ...
 local L = addonTable.localization
-local prettyName = '|cFF33FF99' .. L["Oribos Exchange"] .. '|r'
+local accentColor = '|cff33ff99'
+local prettyName = accentColor .. L["Oribos Exchange"] .. '|r'
 
 local floor = math.floor
 local tinsert, tonumber = tinsert, tonumber
@@ -419,7 +420,7 @@ end
 -- The label for a price line, marked with the stack size when its value is a stack total.
 local function priceLabel(label, quantity)
     if quantity > 1 then
-        return label .. '|cff33ff99 x' .. quantity .. '|r'
+        return label .. accentColor .. ' x' .. quantity .. '|r'
     end
     return label
 end
@@ -484,6 +485,7 @@ local function printHelp()
     print("|cFFFFFF78market|r - " .. L["Toggle realm price line."] .. " " .. getLineStatus('market'))
     print("|cFFFFFF78region|r - " .. L["Toggle %s median line."]:format(regionName) .. " " .. getLineStatus('region'))
     print("|cFFFFFF78lastseen|r - " .. L["Toggle 'Last seen' line."] .. " " .. getLineStatus('lastSeen'))
+    print("|cFFFFFF78whatsnew|r - " .. L["Show the What's New panel."])
     print("|cFFFFFF78debug|r - " .. "Print data diagnostics. Use debug <item link> for one item.")
     print(prettyName .. " - " .. L["Hold Shift over a stack to show its total value."])
 end
@@ -519,6 +521,43 @@ stackWatcher:SetScript("OnEvent", function(_, _, key)
 end)
 
 local eventframe = CreateFrame("FRAME",addonName.."Events")
+
+local pendingWhatsNew = false
+
+local function tryShowWhatsNew()
+    if not pendingWhatsNew then return end
+    if InCombatLockdown and InCombatLockdown() then return end
+
+    pendingWhatsNew = false
+    local whatsNew = addonTable.WhatsNew
+    if whatsNew and whatsNew.Show then
+        whatsNew.Show()
+    end
+end
+
+local function queueWhatsNew()
+    pendingWhatsNew = true
+    if C_Timer and C_Timer.After then
+        C_Timer.After(2, tryShowWhatsNew)
+    else
+        tryShowWhatsNew()
+    end
+end
+
+local function printDataStatus()
+    local whatsNew = addonTable.WhatsNew
+    local line1, line2
+    if whatsNew and whatsNew.DataSyncChatLines then
+        line1, line2 = whatsNew.DataSyncChatLines()
+    elseif addonTable.isForever and addonTable.dataAge then
+        local age = time() - addonTable.dataAge
+        if age < 0 then age = 0 end
+        line1 = "WoW Forever: " .. tostring(addonTable.houseLabel) .. " prices (" .. SecondsToTime(age, true) .. " old)"
+    end
+
+    if line1 then print(prettyName .. " - " .. line1) end
+    if line2 then print(prettyName .. " - " .. line2) end
+end
 
 local function onEvent(self,event,arg)
     if event == "PLAYER_ENTERING_WORLD" then
@@ -567,6 +606,8 @@ local function onEvent(self,event,arg)
             priceScale = addonTable.priceScale,
             isForever = addonTable.isForever,
             items = loadedCount,
+            whatsNewRevision = addonTable.WhatsNew and addonTable.WhatsNew.revision,
+            whatsNewSeen = addonTable.WhatsNew and addonTable.WhatsNew.SeenRevision and addonTable.WhatsNew.SeenRevision(),
             updated = date("%Y-%m-%d %H:%M:%S"),
         }
 
@@ -577,10 +618,11 @@ local function onEvent(self,event,arg)
         else
             regionName = L["%s Region"]:format(addonTable.region)
             realmName = addonTable.houseLabel or currentRealmName
-            if addonTable.isForever and addonTable.dataAge then
-                local age = time() - addonTable.dataAge
-                if age < 0 then age = 0 end
-                print(prettyName .. " - " .. "WoW Forever: " .. tostring(addonTable.houseLabel) .. " prices (" .. SecondsToTime(age, true) .. " old)")
+            local whatsNew = addonTable.WhatsNew
+            if whatsNew and whatsNew.HasUnseen and whatsNew.HasUnseen() then
+                queueWhatsNew()
+            else
+                printDataStatus()
             end
             if not tooltipsEnabled then
                 print(prettyName .. " - " .. L["Tooltip prices disabled. Run %s to enable."]:format("|cFFFFFF78/oetooltip on|r"))
@@ -604,6 +646,8 @@ local function onEvent(self,event,arg)
         if checkAuctionHouseLineHandlers() then
             eventframe:UnregisterEvent("AUCTION_HOUSE_SHOW")
         end
+    elseif event == "PLAYER_REGEN_ENABLED" then
+        tryShowWhatsNew()
     elseif event == "PLAYER_LOGOUT" then
         _G["OETooltipsHidden"] = not tooltipsEnabled
         _G["OETooltipsSettings"] = tooltipsSettings
@@ -613,6 +657,7 @@ end
 eventframe:RegisterEvent("PLAYER_ENTERING_WORLD")
 eventframe:RegisterEvent("ADDON_LOADED")
 eventframe:RegisterEvent("AUCTION_HOUSE_SHOW")
+eventframe:RegisterEvent("PLAYER_REGEN_ENABLED")
 eventframe:RegisterEvent("PLAYER_LOGOUT")
 eventframe:SetScript("OnEvent", onEvent)
 
@@ -630,6 +675,13 @@ function SlashCmdList.ORIBOSEXCHANGE(msg)
     local loweredMsg = string.lower(msg)
     local debugItem = string.match(msg, "^[Dd][Ee][Bb][Uu][Gg]%s+(.+)$")
 
+    if loweredMsg == 'whatsnew' or loweredMsg == 'news' then
+        if addonTable.WhatsNew and addonTable.WhatsNew.Show then
+            addonTable.WhatsNew.Show()
+        end
+        return
+    end
+
     if loweredMsg == 'debug' or debugItem then
         local md = addonTable.marketData
         local count = 0
@@ -641,6 +693,8 @@ function SlashCmdList.ORIBOSEXCHANGE(msg)
         print(("  region %s (%s)  house %s  ruleset %s  faction %s"):format(tostring(addonTable.region), tostring(addonTable.regionId), tostring(addonTable.houseLabel), tostring(addonTable.houseRuleset), tostring(addonTable.houseFaction)))
         print(("  dataAge %s  priceScale %s  forever %s  items %d"):format(addonTable.dataAge and date("%Y-%m-%d %H:%M:%S", addonTable.dataAge) or "nil", tostring(addonTable.priceScale), tostring(addonTable.isForever), count))
         print(("  coins %s  coinAPI %s"):format(tooltipsSettings['text-coins'] and "text" or "icons", tostring(C_CurrencyInfo and C_CurrencyInfo.GetCoinTextureString ~= nil)))
+        local whatsNewSeen = addonTable.WhatsNew and addonTable.WhatsNew.SeenRevision and addonTable.WhatsNew.SeenRevision()
+        print(("  whatsNew rev %s seen %s"):format(tostring(addonTable.WhatsNew and addonTable.WhatsNew.revision), tostring(whatsNewSeen)))
         if md then
             local info = OEMarketInfo(2589, {})
             if info then

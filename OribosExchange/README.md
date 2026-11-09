@@ -10,6 +10,8 @@ This is a port of the retail addon by **Erorus** (the author of Undermine Exchan
 - Separate prices for every Forever auction house: `PvP`, `Normal`, `Roleplay`, `Roleplay PvP` × `Alliance`, `Horde`, `Neutral`.
 - Region median line and auction-house line.
 - Hold **Shift** while hovering a stack to see the **total value of the stack** instead of the per-item price: the realm and region lines are multiplied by the stack size and marked `xN` (for example `Realm x20`). The line updates when Shift is pressed or released without re-hovering.
+- A **What's New** panel opens once after a feature or fix release, with icons and a small preview. Data-only price refreshes skip the panel and print the sync status in chat instead.
+- Login chat reports when the auction-house data was last synced and when the next sync is due.
 - Copper precision (a 25-copper item shows as 25c, not 0s).
 - Coin **icons** (gold/silver/copper) by default, showing only the denominations used. `/oetooltip coins` switches to text.
 - Railway cron triggers the GitHub build every 3 hours at :37 UTC, with native GitHub cron kept as a fallback. Every build downloads all regions, without a freshness skip. Changed prices produce a **new versioned release** (with a UTC timestamp in the version), so addon managers like WowUp can see the update. Scheduling is approximate, not an exact-time guarantee.
@@ -52,6 +54,7 @@ If WowUp does not show an update, use **Check for updates** and make sure the so
 | `/oetooltip lastseen` | Toggle the "Last seen" line |
 | `/oetooltip quiet` | Disable all extra lines |
 | `/oetooltip reset` | Reset preferences |
+| `/oetooltip whatsnew` | Reopen the What's New panel |
 | `/oetooltip debug` | Print what loaded (realm, house, data age, sample price) |
 
 ## How the data gets here
@@ -60,6 +63,7 @@ If WowUp does not show an update, use **Check for updates** and make sure the so
 - The data is written into `OribosExchange/dynamic/data.*.lua` and committed by the [Refresh Forever data](.github/workflows/refresh-data.yml) workflow. Requested times are 02:37, 05:37, 08:37, 11:37, 14:37, 17:37, 20:37 and 23:37 UTC. Minute zero is avoided to reduce scheduling contention.
 - When prices change, the workflow bumps the addon version to a UTC timestamp, packages the zip, and publishes a **new versioned release** marked latest.
 - The addon selects the house from the realm ID (or the realm-name ruleset) and the player's faction. It only loads the file for the client's region.
+- Feature and fix releases update `OribosExchange/WhatsNew.lua` and bump its `revision`; the panel opens once per account. Data-only builds leave that file unchanged, so they never open the panel and print the data sync status in chat instead.
 - Prices are stored in copper; the tooltip uses `C_CurrencyInfo.GetCoinTextureString` so only the used coins are shown.
 
 This is the central updater for the repository: you do not need to run anything locally. The workflow commits data to `main` and publishes the new release. If you also publish to CurseForge/WoWUp, upload that release zip there.
@@ -89,6 +93,8 @@ node tools/forever-data/build.js
 ```
 
 The script auto-detects the repository layout and writes to `OribosExchange/dynamic`. See [tools/forever-data/README.md](tools/forever-data/README.md) for options and the local scheduled-refresh setup.
+
+When a release adds a feature or a user-visible fix, update `OribosExchange/WhatsNew.lua`: bump `revision`, replace `entries` with the new release's cards, and keep the icons or preview images current. Data-only refreshes must leave that file alone.
 
 Build a release zip on Windows:
 
