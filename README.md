@@ -14,7 +14,7 @@ This is a port of the retail addon by **Erorus** (the author of Undermine Exchan
 - Login chat reports when the auction-house data was last synced and when the next sync is due.
 - Copper precision (a 25-copper item shows as 25c, not 0s).
 - Coin **icons** (gold/silver/copper) by default, showing only the denominations used. `/oetooltip coins` switches to text.
-- Railway cron triggers the GitHub build every 3 hours at :37 UTC, with native GitHub cron kept as a fallback. Every build downloads all regions, without a freshness skip. Changed prices produce a **new versioned release** (with a UTC timestamp in the version), so addon managers like WowUp can see the update. Scheduling is approximate, not an exact-time guarantee.
+- Railway cron triggers the GitHub build every 3 hours at :37 UTC; GitHub's native cron is disabled so the two cannot double-run a slot. Every build downloads all regions, without a freshness skip. Changed prices produce a **new versioned release** (with a UTC timestamp in the version), so addon managers like WowUp can see the update. Scheduling is approximate, not an exact-time guarantee.
 - Same data API for other addons: `OEMarketInfo(itemId, table)` and `OETooltip()`.
 
 ## Install
@@ -60,7 +60,7 @@ If WowUp does not show an update, use **Check for updates** and make sure the so
 ## How the data gets here
 
 - `tools/forever-data/build.js` downloads Undermine Exchange's public Forever data (US/EU/TW/KR; 12/12/6/6 auction houses).
-- The data is written into `OribosExchange/dynamic/data.*.lua` and committed by the [Refresh Forever data](.github/workflows/refresh-data.yml) workflow. Requested times are 02:37, 05:37, 08:37, 11:37, 14:37, 17:37, 20:37 and 23:37 UTC. Minute zero is avoided to reduce scheduling contention.
+- The data is written into `OribosExchange/dynamic/data.*.lua` and committed by the [Refresh Forever data](.github/workflows/refresh-data.yml) workflow. The [Railway cron dispatcher](tools/railway-dispatch/README.md) requests a build at 02:37, 05:37, 08:37, 11:37, 14:37, 17:37, 20:37 and 23:37 UTC; GitHub's own schedule trigger is disabled. Minute zero is avoided to reduce scheduling contention.
 - When prices change, the workflow bumps the addon version to a UTC timestamp, packages the zip, and publishes a **new versioned release** marked latest.
 - The addon selects the house from the realm ID (or the realm-name ruleset) and the player's faction. It only loads the file for the client's region.
 - Feature and fix releases update `OribosExchange/WhatsNew.lua` and bump its `revision`; the panel opens once per account. Data-only builds leave that file unchanged, so they never open the panel and print the data sync status in chat instead.
@@ -71,18 +71,19 @@ This is the central updater for the repository: you do not need to run anything 
 Data is a snapshot: the auction-house line is the lowest current listing, and the region line is Undermine Exchange's region median. Like the retail addon, freshness depends on the last update.
 
 To verify automatic operation, run `node tools/forever-data/check-refresh.js`
-(requires GitHub CLI). It fails if the latest automatic run is overdue or did
+(requires GitHub CLI). It fails if the latest Railway dispatch is overdue or did
 not build data. A manual run or a green workflow badge does **not** establish
 that the schedule works. See the [Actions history](https://github.com/ZiiMs/OribosExchange-Forever/actions/workflows/refresh-data.yml)
 and each run's summary for the trigger, outcome and per-region timestamps.
 
 ### Railway scheduler
 
-A one-shot [Railway cron dispatcher](tools/railway-dispatch/README.md) is configured
-to trigger the same build every three hours independently of GitHub cron. It runs
-briefly, sends an authenticated workflow dispatch, and exits. Its token stays
-in Railway's private variables. Runs are labelled **Forever prices (railway)**;
-check them with `node tools/forever-data/check-refresh.js --source railway`.
+A one-shot [Railway cron dispatcher](tools/railway-dispatch/README.md) triggers the
+build every three hours and is the only unattended scheduler; GitHub's native
+cron is disabled so it cannot double-run a slot. It runs briefly, sends an
+authenticated workflow dispatch, and exits. Its token stays in Railway's private
+variables. Runs are labelled **Forever prices (railway)**; check them with
+`node tools/forever-data/check-refresh.js`.
 Verify unattended timing in Railway's cron history as well; an accepted API
 request alone does not prove the build finished or the timer fired.
 
