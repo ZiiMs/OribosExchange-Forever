@@ -1,5 +1,12 @@
 # Changelog
 
+## Unreleased
+
+- Hold Shift while hovering a stack to show the total value of the stack on the realm and region lines, marked `xN`. An open tooltip updates when Shift is pressed or released.
+- A **What's New** panel opens once after a feature or fix release, with cards, icons and a stack-value preview. Data-only price refreshes leave the panel closed.
+- Login chat now reports when the auction-house data was last synced and when the next sync is due.
+- `/oetooltip whatsnew` reopens the What's New panel.
+
 ## 1.3.20261106-forever2
 
 - Fixed item-level entries hiding the base item price on Forever. If an item-level variant has only a region price, the addon now falls back to the base auction-house price instead of showing nothing (for example Yorgen Bracers).
