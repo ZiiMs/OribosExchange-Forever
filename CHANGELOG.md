@@ -2,6 +2,7 @@
 
 ## Unreleased
 
+- Price data now comes from Blizzard's Forever auction API instead of Undermine Exchange. The 4-day median and last-seen lines are rebuilt from a rolling history kept by the refresh workflow; the first refresh after a cache miss has one day of history.
 - Hold Shift while hovering a stack to show the total value of the stack on the realm and region lines, marked `xN`. An open tooltip updates when Shift is pressed or released.
 - A **What's New** panel opens once after a feature or fix release, with cards, icons and a stack-value preview. Data-only price refreshes leave the panel closed.
 - Login chat now reports when the auction-house data was last synced and when the next sync is due.

@@ -1,8 +1,8 @@
 # Oribos Exchange — WoW Forever
 
-Auction-house prices in item tooltips for **World of Warcraft: Forever** (interface `16001`), using the price data published by [Undermine Exchange](https://undermine.exchange).
+Auction-house prices in item tooltips for **World of Warcraft: Forever** (interface `16001`), using Blizzard's Forever auction-house data.
 
-This is a port of the retail addon by **Erorus** (the author of Undermine Exchange). The original addon is built for Midnight and ships retail-only price data; this fork adds Forever realms, data generation, and a 3-hour refresh.
+This is a port of the retail addon by **Erorus**. The original addon is built for Midnight and ships retail-only price data; this fork adds Forever realms, Blizzard auction data generation, and a 3-hour refresh.
 
 ## Features
 
@@ -59,17 +59,17 @@ If WowUp does not show an update, use **Check for updates** and make sure the so
 
 ## How the data gets here
 
-- `tools/forever-data/build.js` downloads Undermine Exchange's public Forever data (US/EU/TW/KR; 12/12/6/6 auction houses).
+- `tools/forever-data/build.js` downloads Blizzard's Forever auction data (US/EU/TW/KR; 12/12/6/6 auction houses).
 - The data is written into `OribosExchange/dynamic/data.*.lua` and committed by the [Refresh Forever data](.github/workflows/refresh-data.yml) workflow. The [Railway cron dispatcher](tools/railway-dispatch/README.md) requests a build at 02:37, 05:37, 08:37, 11:37, 14:37, 17:37, 20:37 and 23:37 UTC; GitHub's own schedule trigger is disabled. Minute zero is avoided to reduce scheduling contention.
 - When prices change, the workflow bumps the addon version to a UTC timestamp, packages the zip, and publishes a **new versioned release** marked latest.
-- A refresh fails instead of publishing when any region produces no data or the newest source scan is over six hours old, so a green run means every region is fresh.
+- A refresh fails instead of publishing when any region produces no data or the oldest auction house is over six hours old, so a green run means every region is fresh.
 - The addon selects the house from the realm ID (or the realm-name ruleset) and the player's faction. It only loads the file for the client's region.
 - Feature and fix releases update `OribosExchange/WhatsNew.lua` and bump its `revision`; the panel opens once per account. Data-only builds leave that file unchanged, so they never open the panel and print the data sync status in chat instead.
 - Prices are stored in copper; the tooltip uses `C_CurrencyInfo.GetCoinTextureString` so only the used coins are shown.
 
 This is the central updater for the repository: you do not need to run anything locally. The workflow commits data to `main` and publishes the new release. If you also publish to CurseForge/WoWUp, upload that release zip there.
 
-Data is a snapshot: the auction-house line is the lowest current listing, and the region line is Undermine Exchange's region median. Like the retail addon, freshness depends on the last update.
+Data is a snapshot: the auction-house line is the 4-day median of the daily lowest listings, and the region line is the median across the region's auction houses. Like the retail addon, freshness depends on the last update.
 
 To verify automatic operation, run `node tools/forever-data/check-refresh.js`
 (requires GitHub CLI). It fails if the latest Railway dispatch is overdue or did
@@ -106,9 +106,9 @@ pwsh tools/package.ps1
 
 ## Credits & licence
 
-- Original addon and Undermine Exchange data: **Erorus** — <https://undermine.exchange/>
+- Original addon: **Erorus** - <https://undermine.exchange/>
 - WoW Forever port, data generator, and automation: **ZiiMs**
-- Price data is provided by Undermine Exchange; this project is not affiliated with Blizzard Entertainment or Undermine Exchange.
+- Price data comes from Blizzard's Forever auction API; this project is not affiliated with Blizzard Entertainment.
 - Licensed under the **GNU Lesser General Public License v3.0**; see [LICENSE](LICENSE) and [LICENSE-GPL-3.0](LICENSE-GPL-3.0). The original addon is also distributed under LGPL-3.0.
 
 Use at your own risk. Prices are third-party estimates and can be stale or missing.

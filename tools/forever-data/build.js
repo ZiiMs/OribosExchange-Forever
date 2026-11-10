@@ -1,7 +1,8 @@
 #!/usr/bin/env node
 /*
- * Builds Oribos Exchange price data for WoW Forever from Undermine Exchange's
- * public realm data (the same files the undermine.exchange website loads).
+ * Builds Oribos Exchange price data for WoW Forever from Blizzard's Forever
+ * auction API by default, or from Undermine Exchange's public realm data with
+ * --source undermine.
  *
  * Usage:
  *   node tools/forever-data/build.js [options]
@@ -10,7 +11,10 @@
  *   --out <dir>        Output directory (default: <addon>/dynamic)
  *   --cache <dir>      Download cache (default: tools/forever-data/cache)
  *   --regions <list>   Comma list of usf,euf,twf,krf (default: all)
- *   --offline          Use only cached downloads
+ *   --source <name>    blizzard (default) or undermine
+ *   --history <file>   Rolling history for the 4-day median and last-seen
+ *                      (default: <cache>/history.json)
+ *   --offline          Use only cached downloads (undermine source only)
  *   --no-cache-save    Don't write downloads to the cache
  *   --min-age <min>    Skip if the output files are newer than this many minutes
  *   --quiet            Less output
@@ -27,6 +31,7 @@ const path = require('path');
 const http2 = require('node:http2');
 const zlib = require('node:zlib');
 const { STATUS_CODES } = require('node:http');
+const { dayNumber, dayDiff, loadHistory, saveHistory, regionHistoryFor } = require('./history');
 
 const SITE = 'https://undermine.exchange';
 const HEADERS = {
@@ -41,10 +46,61 @@ const HEADERS = {
 
 // Forever region -> addon region. currentRegion is GetCurrentRegion().
 const REGIONS = {
-    usf: { addonRegion: 'US', currentRegion: 1, file: 'data.us.lua' },
-    euf: { addonRegion: 'EU', currentRegion: 3, file: 'data.eu.lua' },
-    twf: { addonRegion: 'TW', currentRegion: 4, file: 'data.tw.lua' },
-    krf: { addonRegion: 'KR', currentRegion: 2, file: 'data.kr.lua' },
+    usf: { addonRegion: 'US', currentRegion: 1, api: 'us', file: 'data.us.lua' },
+    euf: { addonRegion: 'EU', currentRegion: 3, api: 'eu', file: 'data.eu.lua' },
+    twf: { addonRegion: 'TW', currentRegion: 4, api: 'tw', file: 'data.tw.lua' },
+    krf: { addonRegion: 'KR', currentRegion: 2, api: 'kr', file: 'data.kr.lua' },
+};
+
+// Blizzard's Forever auction houses. The IDs are the same in every region;
+// 112, 115 and 118 are empty. Slot order matches the existing data files:
+// PvP A/H/N, Normal A/H/N, Roleplay A/H/N, Roleplay PvP A/H/N.
+const house = (label, faction, ruleset, id, base, blizzard) => ({ label, faction, ruleset, id, base, blizzard });
+const BLIZZARD_HOUSES = {
+    usf: [
+        house('PvP Alliance', 'alliance', 'PvP', 366, 33134, 110),
+        house('PvP Horde', 'horde', 'PvP', 369, 33137, 113),
+        house('PvP Neutral', 'neutral', 'PvP', 372, 33140, 116),
+        house('Normal Alliance', 'alliance', 'Normal', 623, 33391, 111),
+        house('Normal Horde', 'horde', 'Normal', 626, 33394, 114),
+        house('Normal Neutral', 'neutral', 'Normal', 629, 33397, 117),
+        house('Roleplay Alliance', 'alliance', 'Roleplay', 887, 33655, 119),
+        house('Roleplay Horde', 'horde', 'Roleplay', 888, 33656, 120),
+        house('Roleplay Neutral', 'neutral', 'Roleplay', 889, 33657, 121),
+        house('Roleplay PvP Alliance', 'alliance', 'Roleplay PvP', 3963, 36731, 123),
+        house('Roleplay PvP Horde', 'horde', 'Roleplay PvP', 3964, 36732, 124),
+        house('Roleplay PvP Neutral', 'neutral', 'Roleplay PvP', 3965, 36733, 125),
+    ],
+    euf: [
+        house('PvP Alliance', 'alliance', 'PvP', 8558, 41326, 110),
+        house('PvP Horde', 'horde', 'PvP', 8561, 41329, 113),
+        house('PvP Neutral', 'neutral', 'PvP', 8564, 41332, 116),
+        house('Normal Alliance', 'alliance', 'Normal', 8815, 41583, 111),
+        house('Normal Horde', 'horde', 'Normal', 8818, 41586, 114),
+        house('Normal Neutral', 'neutral', 'Normal', 8821, 41589, 117),
+        house('Roleplay Alliance', 'alliance', 'Roleplay', 9079, 41847, 119),
+        house('Roleplay Horde', 'horde', 'Roleplay', 9080, 41848, 120),
+        house('Roleplay Neutral', 'neutral', 'Roleplay', 9081, 41849, 121),
+        house('Roleplay PvP Alliance', 'alliance', 'Roleplay PvP', 12155, 44923, 123),
+        house('Roleplay PvP Horde', 'horde', 'Roleplay PvP', 12156, 44924, 124),
+        house('Roleplay PvP Neutral', 'neutral', 'Roleplay PvP', 12157, 44925, 125),
+    ],
+    krf: [
+        house('PvP Alliance', 'alliance', 'PvP', 8558, 57710, 110),
+        house('PvP Horde', 'horde', 'PvP', 8561, 57713, 113),
+        house('PvP Neutral', 'neutral', 'PvP', 8564, 57716, 116),
+        house('Normal Alliance', 'alliance', 'Normal', 8815, 57967, 111),
+        house('Normal Horde', 'horde', 'Normal', 8818, 57970, 114),
+        house('Normal Neutral', 'neutral', 'Normal', 8821, 57973, 117),
+    ],
+    twf: [
+        house('PvP Alliance', 'alliance', 'PvP', 366, 49518, 110),
+        house('PvP Horde', 'horde', 'PvP', 369, 49521, 113),
+        house('PvP Neutral', 'neutral', 'PvP', 372, 49524, 116),
+        house('Normal Alliance', 'alliance', 'Normal', 623, 49775, 111),
+        house('Normal Horde', 'horde', 'Normal', 626, 49778, 114),
+        house('Normal Neutral', 'neutral', 'Normal', 629, 49781, 117),
+    ],
 };
 
 // Two refresh cycles. A run that is still green must not publish source data
@@ -75,6 +131,8 @@ function parseArgs(argv) {
         out: DEFAULT_OUT,
         cache: path.resolve(__dirname, 'cache'),
         regions: Object.keys(REGIONS),
+        source: 'blizzard',
+        history: null,
         offline: false,
         cacheSave: true,
         minAge: 0,
@@ -85,6 +143,8 @@ function parseArgs(argv) {
         if (a === '--out') args.out = path.resolve(argv[++i]);
         else if (a === '--cache') args.cache = path.resolve(argv[++i]);
         else if (a === '--regions') args.regions = argv[++i].split(',').map(s => s.trim()).filter(Boolean);
+        else if (a === '--source') args.source = argv[++i];
+        else if (a === '--history') args.history = path.resolve(argv[++i]);
         else if (a === '--offline') args.offline = true;
         else if (a === '--no-cache-save') args.cacheSave = false;
         else if (a === '--min-age') args.minAge = Number(argv[++i]) || 0;
@@ -99,6 +159,13 @@ function parseArgs(argv) {
     for (const r of args.regions) {
         if (!REGIONS[r]) throw new Error(`Unknown region: ${r}`);
     }
+    if (args.source !== 'blizzard' && args.source !== 'undermine') {
+        throw new Error(`Unknown source: ${args.source}`);
+    }
+    if (args.source === 'blizzard' && args.offline) {
+        throw new Error('--offline is only available with --source undermine');
+    }
+    args.history ??= path.join(args.cache, 'history.json');
     return args;
 }
 
@@ -575,6 +642,170 @@ async function buildRegion(region, config, houses, stateData, regionData, cacheR
 }
 
 // ---------------------------------------------------------------------------
+// Blizzard source
+// ---------------------------------------------------------------------------
+
+const sleep = (ms) => new Promise((resolve) => setTimeout(resolve, ms));
+
+async function fetchWithRetry(url, options, tries = 3) {
+    let lastError;
+    for (let attempt = 1; attempt <= tries; attempt++) {
+        try {
+            const res = await fetch(url, { ...options, signal: AbortSignal.timeout(120000) });
+            if (res.status === 429 || res.status >= 500) {
+                lastError = new Error(`HTTP ${res.status}`);
+                if (attempt < tries) await sleep(attempt * 1000);
+                continue;
+            }
+            return res;
+        } catch (e) {
+            lastError = e;
+            if (attempt < tries) await sleep(attempt * 1000);
+        }
+    }
+    throw new Error(`${url}: ${lastError.message || lastError}`);
+}
+
+let blizzardToken = null;
+
+async function getBlizzardToken() {
+    if (blizzardToken) return blizzardToken;
+    const id = process.env.BLIZZARD_CLIENT_ID;
+    const secret = process.env.BLIZZARD_CLIENT_SECRET;
+    if (!id || !secret) {
+        throw new Error('BLIZZARD_CLIENT_ID and BLIZZARD_CLIENT_SECRET are required for the blizzard source');
+    }
+    const res = await fetchWithRetry('https://oauth.battle.net/token', {
+        method: 'POST',
+        headers: {
+            Authorization: 'Basic ' + Buffer.from(`${id}:${secret}`).toString('base64'),
+            'Content-Type': 'application/x-www-form-urlencoded',
+        },
+        body: 'grant_type=client_credentials',
+    });
+    const body = await res.json().catch(() => ({}));
+    if (!res.ok) throw new Error(`Battle.net token: ${res.status} ${JSON.stringify(body).slice(0, 200)}`);
+    blizzardToken = body.access_token;
+    if (!blizzardToken) throw new Error('Battle.net token: no access_token in the reply');
+    return blizzardToken;
+}
+
+async function blizzardJson(apiRegion, apiPath, token) {
+    const url = `https://${apiRegion}.api.blizzard.com${apiPath}?namespace=dynamic-forever-${apiRegion}`;
+    const res = await fetchWithRetry(url, {
+        headers: { Authorization: `Bearer ${token}`, 'Accept-Encoding': 'gzip' },
+    });
+    const text = await res.text();
+    if (!res.ok) throw new Error(`${apiRegion} ${apiPath}: ${res.status} ${text.slice(0, 200)}`);
+    let json;
+    try {
+        json = JSON.parse(text);
+    } catch (e) {
+        throw new Error(`${apiRegion} ${apiPath}: invalid JSON`);
+    }
+    const lastModified = res.headers.get('last-modified');
+    const time = lastModified ? Math.floor(new Date(lastModified).getTime() / 1000) : 0;
+    return { json, time: Number.isFinite(time) ? time : 0 };
+}
+
+async function loadBlizzardHouse(apiRegion, blizzardId, token) {
+    const [listings, goods] = await Promise.all([
+        blizzardJson(apiRegion, `/data/wow/ruleset/2/auctions/${blizzardId}`, token),
+        blizzardJson(apiRegion, `/data/wow/ruleset/2/auctions/${blizzardId}/commodities`, token),
+    ]);
+    const prices = new Map();
+    const add = (itemID, price) => {
+        if (!itemID || !price || price <= 0) return;
+        const entry = prices.get(itemID);
+        if (!entry) prices.set(itemID, { price, count: 1 });
+        else {
+            entry.count++;
+            if (price < entry.price) entry.price = price;
+        }
+    };
+    const eachOf = (auction) => {
+        if (auction.unit_price != null) return Number(auction.unit_price);
+        const buyout = Number(auction.buyout);
+        const quantity = Number(auction.quantity) || 1;
+        return buyout ? Math.floor(buyout / quantity) : 0;
+    };
+    for (const auction of listings.json.auctions || []) add(auction.item && auction.item.id, eachOf(auction));
+    for (const auction of goods.json.auctions || []) add(auction.item && auction.item.id, eachOf(auction));
+    const times = [listings.time, goods.time].filter((t) => t > 0);
+    return { prices, time: times.length ? Math.min(...times) : Math.floor(Date.now() / 1000) };
+}
+
+async function buildBlizzardRegion(region, config, history, token) {
+    const houses = BLIZZARD_HOUSES[region];
+    if (!houses || !houses.length) throw new Error(`${region}: no Blizzard house map`);
+    const today = dayNumber();
+    const state = regionHistoryFor(history, region, houses, today);
+    const pricesByHouse = [];
+    const houseTimes = [];
+    for (const h of houses) {
+        const got = await loadBlizzardHouse(config.api, h.blizzard, token);
+        pricesByHouse.push(got.prices);
+        houseTimes.push(got.time);
+        log(`  ${h.label.padEnd(20)} ${got.prices.size} items, ${new Date(got.time * 1000).toISOString()}`);
+    }
+
+    for (let i = 0; i < houses.length; i++) {
+        const hist = state.houses[i];
+        for (const [itemID, entry] of pricesByHouse[i]) {
+            let rec = hist[itemID];
+            if (!rec) rec = hist[itemID] = [null, null, null, null, 0];
+            rec[0] = rec[0] ? Math.min(rec[0], entry.price) : entry.price;
+            rec[4] = today;
+        }
+    }
+
+    for (const hist of state.houses) {
+        for (const [itemID, rec] of Object.entries(hist)) {
+            const priced = rec.slice(0, 4).some((p) => p > 0);
+            const last = rec[4] || 0;
+            if (!priced && (!last || dayDiff(last, today) > 250)) delete hist[itemID];
+        }
+    }
+
+    const itemIDs = new Set();
+    for (const hist of state.houses) for (const id of Object.keys(hist)) itemIDs.add(Number(id));
+
+    const records = [];
+    for (const id of [...itemIDs].sort((a, b) => a - b)) {
+        const houseValues = [];
+        for (let i = 0; i < houses.length; i++) {
+            const rec = state.houses[i][id];
+            if (!rec) {
+                houseValues.push({ price: 0, days: 0 });
+                continue;
+            }
+            const prices = rec.slice(0, 4).filter((p) => p > 0);
+            const price = prices.length ? median(prices) : 0;
+            const days = rec[4] ? Math.min(251, Math.max(0, dayDiff(rec[4], today))) : 251;
+            houseValues.push({ price, days });
+        }
+        const regionPrice = median(houseValues.map((v) => v.price));
+        if (!regionPrice && !houseValues.some((v) => v.days <= 250)) continue;
+        const maxPrice = Math.max(regionPrice, ...houseValues.map((v) => v.price));
+        const size = bytesFor(maxPrice);
+        const blob = [size, ...beBytes(regionPrice, size)];
+        for (const v of houseValues) {
+            blob.push(v.days);
+            blob.push(...beBytes(v.price, size));
+        }
+        for (let h = 0; h < houseValues.length; h++) {
+            const got = cropDecode(blob, h);
+            if (got.region !== regionPrice || got.days !== houseValues[h].days || got.market !== houseValues[h].price) {
+                throw new Error(`${id} house ${h}: round-trip mismatch (region ${got.region}/${regionPrice}, days ${got.days}/${houseValues[h].days}, market ${got.market}/${houseValues[h].price})`);
+            }
+        }
+        records.push({ key: String(id), blob, regionPrice, houses: houseValues });
+    }
+
+    return { region, config, houses, records, houseTimes };
+}
+
+// ---------------------------------------------------------------------------
 // Lua writer
 // ---------------------------------------------------------------------------
 
@@ -640,7 +871,7 @@ function writeLua(region, config, houses, records, houseTimes) {
     }
 
     const lua = `-- Generated by tools/forever-data/build.js. Do not edit by hand.
--- WoW Forever (${region}) price data from Undermine Exchange.
+-- WoW Forever (${region}) price data from ${args.source === 'blizzard' ? "Blizzard's Forever auction data" : 'Undermine Exchange'}.
 -- Data as of ${new Date(dataTime * 1000).toISOString()}.
 local addonName, addonTable = ...
 addonTable.dataLoads = addonTable.dataLoads or {}
@@ -771,6 +1002,49 @@ table.insert(addonTable.dataLoads, dataLoad)
 // Main
 // ---------------------------------------------------------------------------
 
+async function mainBlizzard() {
+    log(`History: ${args.history}`);
+    const token = await getBlizzardToken();
+    const history = loadHistory(args.history);
+    const failed = [];
+    let oldestSource = Infinity;
+
+    for (const region of args.regions) {
+        const config = REGIONS[region];
+        const houses = BLIZZARD_HOUSES[region];
+        if (!houses || !houses.length) {
+            warn(`${region}: no Blizzard house map`);
+            failed.push(region);
+            continue;
+        }
+        log(`\n${region} (${config.addonRegion}): ${houses.length} auction houses`);
+
+        const result = await buildBlizzardRegion(region, config, history, token);
+        if (!result.records.length) {
+            warn(`${region}: no price records; leaving the existing file untouched`);
+            failed.push(region);
+            continue;
+        }
+        const written = writeLua(region, config, houses, result.records, result.houseTimes);
+        log(`  -> ${path.basename(written.outPath)}: ${result.records.length} entries, ${(written.bytes / 1024).toFixed(0)} KiB`);
+        oldestSource = Math.min(oldestSource, ...result.houseTimes);
+    }
+
+    saveHistory(args.history, history);
+
+    if (failed.length) {
+        throw new Error(`Refresh incomplete: ${failed.join(', ')} produced no data (wrote ${args.regions.length - failed.length} of ${args.regions.length} regions).`);
+    }
+    if (!Number.isFinite(oldestSource)) {
+        throw new Error('Source data is stale: no auction-house timestamp was found.');
+    }
+    const ageMinutes = (Date.now() / 1000 - oldestSource) / 60;
+    log(`  oldest auction house: ${new Date(oldestSource * 1000).toISOString()}`);
+    if (ageMinutes > MAX_SOURCE_AGE_MINUTES) {
+        throw new Error(`Source data is stale: oldest auction house is ${ageMinutes.toFixed(0)} minutes old (limit ${MAX_SOURCE_AGE_MINUTES}).`);
+    }
+}
+
 async function main() {
     fs.mkdirSync(args.cache, { recursive: true });
 
@@ -793,6 +1067,12 @@ async function main() {
 
     log(`Output: ${args.out}`);
     log(`Cache:  ${args.cache}`);
+    log(`Source: ${args.source}`);
+
+    if (args.source === 'blizzard') {
+        await mainBlizzard();
+        return;
+    }
 
     const realmList = await fetchJson(`${SITE}/json/realms/realm-list.json`, path.join(args.cache, 'realm-list.json'));
     const realmNames = await fetchJson(`${SITE}/json/realms/realm-names.enus.json`, path.join(args.cache, 'realm-names.enus.json'));

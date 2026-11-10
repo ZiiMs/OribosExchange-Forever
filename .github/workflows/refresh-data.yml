@@ -1,4 +1,4 @@
-# Refreshes the addon's Forever price data from Undermine Exchange.
+# Refreshes the addon's Forever price data from Blizzard's Forever auction API.
 # The Railway cron dispatcher requests a refresh every three hours, away from
 # GitHub's minute-zero peak. GitHub's own schedule trigger is intentionally
 # absent: it fired late (or not at all) and duplicated Railway's slots.
@@ -43,7 +43,18 @@ jobs:
       - name: Validate refresh configuration
         run: node --test tools/forever-data/*.test.js tools/railway-dispatch/*.test.js
 
+      - name: Restore auction history
+        uses: actions/cache@v4
+        with:
+          path: tools/forever-data/cache/history.json
+          key: auction-history-${{ github.run_id }}
+          restore-keys: |
+            auction-history-
+
       - name: Build Forever data
+        env:
+          BLIZZARD_CLIENT_ID: ${{ secrets.BLIZZARD_CLIENT_ID }}
+          BLIZZARD_CLIENT_SECRET: ${{ secrets.BLIZZARD_CLIENT_SECRET }}
         run: node tools/forever-data/build.js
 
       - name: Commit data and bump version
@@ -83,7 +94,7 @@ jobs:
           gh release create "v$VERSION" "dist/OribosExchange-$VERSION.zip" \
             --target "$(git rev-parse HEAD)" \
             --title "Oribos Exchange $VERSION" \
-            --notes "Automatic Forever price data refresh ($VERSION UTC). Prices from Undermine Exchange." \
+            --notes "Automatic Forever price data refresh ($VERSION UTC). Prices from Blizzard's Forever auction data." \
             --latest
 
       - name: Refresh summary
