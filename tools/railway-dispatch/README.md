@@ -10,7 +10,7 @@ Actions run to verify build/release completion.
 - Source: `ZiiMs/OribosExchange-Forever`, branch `main`, repository root `/`.
 - Dockerfile path: `tools/railway-dispatch/Dockerfile` (build context: repo root).
 - Start command: image default (`node dispatch.js`).
-- Cron schedule: `37 2-23/3 * * *` — every three hours at :37 UTC.
+- Cron schedule: `37 * * * *` — every hour at :37 UTC.
 - Restart policy: **Never**. No healthcheck, domain, database or volume needed.
 - Watch paths: `/tools/railway-dispatch/**` and `/.dockerignore`, so price-data commits do not
   redeploy the dispatcher and trigger a feedback loop.
@@ -63,9 +63,11 @@ Rotate the GitHub token privately before its expiry.
   `succeeded` at 00:20:12. The matching GitHub run
   [42429280247](https://github.com/ZiiMs/OribosExchange-Forever/actions/runs/42429280247)
   also completed successfully. The container exited with zero running replicas.
-- The production cron was restored to `37 2-23/3 * * *` afterward. This verifies
-  a real timed execution and the configured three-hour interval, not a guarantee
-  of future runs or exact-to-the-minute delivery.
+- The production cron was restored to the then-current `37 2-23/3 * * *` afterward.
+  This verifies a real timed execution and the interval configured at the time,
+  not a guarantee of future runs or exact-to-the-minute delivery.
+- On 2026-11-10 the production cron was changed to `37 * * * *` (hourly at :37
+  UTC). The next unattended Railway run verifies the new cadence.
 
 ## Verify
 

@@ -1,5 +1,5 @@
 # Refreshes the addon's Forever price data from Blizzard's Forever auction API.
-# The Railway cron dispatcher requests a refresh every three hours, away from
+# The Railway cron dispatcher requests a refresh every hour, away from
 # GitHub's minute-zero peak. GitHub's own schedule trigger is intentionally
 # absent: it fired late (or not at all) and duplicated Railway's slots.
 name: Refresh Forever data
@@ -112,7 +112,7 @@ jobs:
             echo "- Dispatch source: ${TRIGGER_SOURCE:-manual}"
             echo '- A Railway-labelled dispatch verifies the connection; Railway cron logs verify unattended scheduling.'
             echo "- Finished: $(date -u +%FT%TZ)"
-            echo '- Scheduler: Railway cron, every three hours at :37 UTC'
+            echo '- Scheduler: Railway cron, every hour at :37 UTC'
             echo "- Job: $JOB_STATUS"
             echo "- Data changed: ${CHANGED:-not determined}"
             echo "- Release version: ${VERSION:-none}"

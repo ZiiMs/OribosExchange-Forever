@@ -3,7 +3,7 @@
 // Read-only check. Unlike a manual dispatch, this verifies automatic delivery.
 const { execFileSync } = require('node:child_process');
 
-function evaluateScheduledRun(runs, now = Date.now(), maxAgeMinutes = 195, after = 0, source = 'railway') {
+function evaluateScheduledRun(runs, now = Date.now(), maxAgeMinutes = 75, after = 0, source = 'railway') {
     const scheduled = runs.filter(run => source === 'railway'
         ? run.event === 'workflow_dispatch' && run.display_title === 'Forever prices (railway)'
         : run.event === 'schedule')
@@ -35,7 +35,7 @@ function main() {
     const api = endpoint => JSON.parse(execFileSync('gh', ['api', `repos/${repo}/${endpoint}`], { encoding: 'utf8' }));
     const event = source === 'railway' ? 'workflow_dispatch' : 'schedule';
     const { workflow_runs: runs } = api(`actions/workflows/refresh-data.yml/runs?event=${event}&per_page=100`);
-    const result = evaluateScheduledRun(runs, Date.now(), 195, after, source);
+    const result = evaluateScheduledRun(runs, Date.now(), 75, after, source);
     console.log(`Checked at ${new Date().toISOString()}`);
     console.log(`Source: ${source}${source === 'railway' ? ' (check Railway cron logs separately for unattended timing)' : ''}`);
     if (result.run) {

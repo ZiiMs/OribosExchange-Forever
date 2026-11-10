@@ -94,8 +94,7 @@ the cache.
 
 The [Refresh Forever data](../../.github/workflows/refresh-data.yml) workflow
 is dispatched by the [Railway cron dispatcher](../railway-dispatch/README.md)
-every three hours at 02:37, 05:37, 08:37, 11:37, 14:37, 17:37, 20:37 and
-23:37 UTC (`37 2-23/3 * * *`), and can be started by hand. GitHub's own
+every hour at :37 UTC (`37 * * * *`), and can be started by hand. GitHub's own
 schedule trigger is deliberately disabled: it delivered runs 16 minutes to
 2.6 hours late, after the Railway run for the same slot, so it duplicated work
 instead of acting as a fallback. Every run downloads all regions; no
@@ -127,7 +126,7 @@ node tools/forever-data/check-refresh.js --after 2026-11-07T20:30:00Z
 ```
 
 The read-only health check requires `gh` and — by default — fails unless the
-latest Railway-labelled dispatch completed successfully within 195 minutes and
+latest Railway-labelled dispatch completed successfully within 75 minutes and
 actually ran the data build. `--source github` checks the retired GitHub
 schedule instead. `--after` requires a new run after a deployment. Manual
 dispatches never satisfy the Railway check. Each workflow run also writes a
@@ -159,7 +158,7 @@ Startup folder) if you prefer; it is not required for the repository data.
   the fifteen house IDs were confirmed against live data on 2026-11-10; treat
   them as best-effort.
 * Values are a snapshot. The retail addon rebuilds its data a few times a
-  week; the workflow above refreshes every 3 hours.
+  week; the workflow above refreshes every hour.
 * `/oetooltip debug` prints what was loaded. The same information is written
   to the `OETooltipDebug` saved variable on the next reload/logout.
 * Price data comes from Blizzard's Forever auction API. This project is not

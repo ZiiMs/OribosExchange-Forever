@@ -2,7 +2,7 @@
 
 Auction-house prices in item tooltips for **World of Warcraft: Forever** (interface `16001`), using Blizzard's Forever auction-house data.
 
-This is a port of the retail addon by **Erorus**. The original addon is built for Midnight and ships retail-only price data; this fork adds Forever realms, Blizzard auction data generation, and a 3-hour refresh.
+This is a port of the retail addon by **Erorus**. The original addon is built for Midnight and ships retail-only price data; this fork adds Forever realms, Blizzard auction data generation, and an hourly refresh.
 
 ## Features
 
@@ -14,7 +14,7 @@ This is a port of the retail addon by **Erorus**. The original addon is built fo
 - Login chat reports when the auction-house data was last synced and when the next sync is due.
 - Copper precision (a 25-copper item shows as 25c, not 0s).
 - Coin **icons** (gold/silver/copper) by default, showing only the denominations used. `/oetooltip coins` switches to text.
-- Railway cron triggers the GitHub build every 3 hours at :37 UTC; GitHub's native cron is disabled so the two cannot double-run a slot. Every build downloads all regions, without a freshness skip. Changed prices produce a **new versioned release** (with a UTC timestamp in the version), so addon managers like WowUp can see the update. Scheduling is approximate, not an exact-time guarantee.
+- Railway cron triggers the GitHub build every hour at :37 UTC; GitHub's native cron is disabled so the two cannot double-run a slot. Every build downloads all regions, without a freshness skip. Changed prices produce a **new versioned release** (with a UTC timestamp in the version), so addon managers like WowUp can see the update. Scheduling is approximate, not an exact-time guarantee.
 - Same data API for other addons: `OEMarketInfo(itemId, table)` and `OETooltip()`.
 
 ## Install
@@ -60,7 +60,7 @@ If WowUp does not show an update, use **Check for updates** and make sure the so
 ## How the data gets here
 
 - `tools/forever-data/build.js` downloads Blizzard's Forever auction data (US/EU/TW/KR; 12/12/6/6 auction houses).
-- The data is written into `OribosExchange/dynamic/data.*.lua` and committed by the [Refresh Forever data](.github/workflows/refresh-data.yml) workflow. The [Railway cron dispatcher](tools/railway-dispatch/README.md) requests a build at 02:37, 05:37, 08:37, 11:37, 14:37, 17:37, 20:37 and 23:37 UTC; GitHub's own schedule trigger is disabled. Minute zero is avoided to reduce scheduling contention.
+- The data is written into `OribosExchange/dynamic/data.*.lua` and committed by the [Refresh Forever data](.github/workflows/refresh-data.yml) workflow. The [Railway cron dispatcher](tools/railway-dispatch/README.md) requests a build every hour at :37 UTC; GitHub's own schedule trigger is disabled. Minute zero is avoided to reduce scheduling contention.
 - When prices change, the workflow bumps the addon version to a UTC timestamp, packages the zip, and publishes a **new versioned release** marked latest.
 - A refresh fails instead of publishing when any region produces no data or the oldest auction house is over six hours old, so a green run means every region is fresh.
 - The addon selects the house from the realm ID (or the realm-name ruleset) and the player's faction. It only loads the file for the client's region.
@@ -80,7 +80,7 @@ and each run's summary for the trigger, outcome and per-region timestamps.
 ### Railway scheduler
 
 A one-shot [Railway cron dispatcher](tools/railway-dispatch/README.md) triggers the
-build every three hours and is the only unattended scheduler; GitHub's native
+build every hour and is the only unattended scheduler; GitHub's native
 cron is disabled so it cannot double-run a slot. It runs briefly, sends an
 authenticated workflow dispatch, and exits. Its token stays in Railway's private
 variables. Runs are labelled **Forever prices (railway)**; check them with

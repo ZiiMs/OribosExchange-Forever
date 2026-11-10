@@ -73,7 +73,7 @@ hardcoding this table. Naowh's scan-matching and faction-median fallback are not
 - Biggest house: 142,409 listings, 73,500 commodities, 3,507 unique items, 19 MB.
 - The other regions are smaller; KR/TW only have the six PvP/Normal houses active.
 - Freshness: `Last-Modified` was 04:13 UTC when read at 04:41, while our current data was compiled
-  at 02:13. A 3-hour build would always take fresh data.
+  at 02:13. An hourly build would always take fresh data.
 - Fields: `buyout`, `quantity`, `unit_price`, `time_left`. Bid-only listings have no buyout and are
   skipped (30 of 142,409 in house 114). `bonus_lists` or `context` appear on about 36% of listings,
   but our Forever data currently has zero level/suffix records, so pricing the base item ID loses
