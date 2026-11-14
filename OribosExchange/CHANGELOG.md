@@ -2,6 +2,9 @@
 
 ## Unreleased
 
+- An **options page** under Options > AddOns > Oribos Exchange, with a checkbox for every line (including the crafting cost), the coin style, and a toggle for the minimap button. Applying defaults restores every preference. `/oetooltip options` opens it.
+- A **minimap button**: left-click opens the options page, right-click toggles tooltip prices, drag moves it, and its position is remembered. Hide it from the options page or with `/oetooltip minimap`.
+- Selecting a recipe in the profession window now shows what its reagents cost at auction-house prices, what the item sells for after the 5% cut, and the profit as a percentage of cost, in the recipe panel just below the reagent list. Only basic reagents are priced, so optional and finishing reagents never change the figure. A reagent with no listing is marked and the profit is left out rather than overstated. `/oetooltip craft` toggles it; `quiet` includes it and `reset` brings it back.
 - Hold Shift while hovering a stack to show the total value of the stack on the realm and region lines, marked `xN`. An open tooltip updates when Shift is pressed or released.
 - A **What's New** panel opens once after a feature or fix release, with cards, icons and a stack-value preview. Data-only price refreshes leave the panel closed.
 - Login chat now reports when the auction-house data was last synced and when the next sync is due.

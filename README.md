@@ -11,6 +11,8 @@ This is a port of the retail addon by **Erorus**. The original addon is built fo
 - Region median line and auction-house line.
 - Hold **Shift** while hovering a stack to see the **total value of the stack** instead of the per-item price: the realm and region lines are multiplied by the stack size and marked `xN` (for example `Realm x20`). The line updates when Shift is pressed or released without re-hovering.
 - A **What's New** panel opens once after a feature or fix release, with icons and a small preview. Data-only price refreshes skip the panel and print the sync status in chat instead.
+- **Crafting cost** in the profession window: select a recipe and the panel shows the reagent cost at auction-house prices, the item's value after the 5% cut, and the profit with its percentage, just below the reagent list. Reagents with no listing are marked, and the profit is left out rather than guessed.
+- **Options page** under Options > AddOns > Oribos Exchange, with a checkbox for every line including the crafting cost, plus a **minimap button** that opens it. Right-click the button to toggle tooltip prices, drag it to move it, or hide it from the page or with `/oetooltip minimap`.
 - Login chat reports when the auction-house data was last synced and when the next sync is due.
 - Copper precision (a 25-copper item shows as 25c, not 0s).
 - Coin **icons** (gold/silver/copper) by default, showing only the denominations used. `/oetooltip coins` switches to text.
@@ -46,11 +48,14 @@ If WowUp does not show an update, use **Check for updates** and make sure the so
 | Command | Effect |
 | --- | --- |
 | `/oetooltip` | List options |
+| `/oetooltip options` | Open the options page |
+| `/oetooltip minimap` | Show/hide the minimap button |
 | `/oetooltip on` / `off` | Enable/disable tooltip changes |
 | `/oetooltip coins` | Toggle coin icons / text |
 | `/oetooltip age` | Toggle the data-age line |
 | `/oetooltip market` | Toggle the auction-house price line |
 | `/oetooltip region` | Toggle the region median line |
+| `/oetooltip craft` | Toggle the crafting cost line in the profession window |
 | `/oetooltip lastseen` | Toggle the "Last seen" line |
 | `/oetooltip quiet` | Disable all extra lines |
 | `/oetooltip reset` | Reset preferences |

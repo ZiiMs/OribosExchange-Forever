@@ -45,8 +45,24 @@ local function syncAges()
 end
 
 local WhatsNew = {
-    revision = 1,
+    revision = 3,
     entries = {
+        {
+            kind = "FEATURE",
+            title = L["Options and minimap button"],
+            description = L["Every line now has a checkbox under Options > AddOns > Oribos Exchange, and a minimap button opens that page. Right-click the button to toggle tooltip prices, or hide it from the page."],
+            icon = "Interface\\Icons\\INV_Misc_Map_01",
+        },
+        {
+            kind = "FEATURE",
+            title = L["Crafting cost"],
+            description = L["Select a recipe in the profession window to see what its reagents cost at auction-house prices, what the item sells for after the 5% cut, and the profit, just below the reagents. Turn it off with /oetooltip craft."],
+            icon = "Interface\\Icons\\INV_Misc_Coin_02",
+            preview = {
+                { L["Crafting cost"], coinText(158600) },
+                { L["Craft profit"] .. " " .. "(803%)", coinText(1272955) },
+            },
+        },
         {
             kind = "FEATURE",
             title = L["Stack value with Shift"],
