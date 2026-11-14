@@ -104,6 +104,15 @@ local function round(num)
     return floor(num + 0.5)
 end
 
+-- Exposed for Crafting.lua, which prints its own lines with the same coins.
+addonTable.coins = coins
+
+-- The current preferences, read by Crafting.lua. Settings are loaded on
+-- ADDON_LOADED, after this file runs, so they cannot be captured here.
+function addonTable.getTooltipsSettings()
+    return tooltipsSettings
+end
+
 local function roundToOdd(value)
     local floored = floor(value)
     if floor((value - floored) * 1000000) == 500000 then
@@ -393,6 +402,9 @@ function OETooltip(...)
     return tooltipsEnabled
 end
 
+-- Crafting.lua runs after this file and asks whether tooltip additions are on.
+addonTable.OETooltip = OETooltip
+
 local qualityRGB = {
     [0] = {0.616,0.616,0.616},
     [1] = {1,1,1},
@@ -484,8 +496,11 @@ local function printHelp()
     print("|cFFFFFF78age|r - " .. L["Toggle data age line."] .. " " .. getLineStatus('age'))
     print("|cFFFFFF78market|r - " .. L["Toggle realm price line."] .. " " .. getLineStatus('market'))
     print("|cFFFFFF78region|r - " .. L["Toggle %s median line."]:format(regionName) .. " " .. getLineStatus('region'))
+    print("|cFFFFFF78craft|r - " .. L["Toggle crafting cost line in the profession window."] .. " " .. getLineStatus('craft'))
     print("|cFFFFFF78lastseen|r - " .. L["Toggle 'Last seen' line."] .. " " .. getLineStatus('lastSeen'))
     print("|cFFFFFF78whatsnew|r - " .. L["Show the What's New panel."])
+    print("|cFFFFFF78options|r - " .. L["Open the options page."])
+    print("|cFFFFFF78minimap|r - " .. L["Toggle the minimap button."])
     print("|cFFFFFF78debug|r - " .. "Print data diagnostics. Use debug <item link> for one item.")
     print(prettyName .. " - " .. L["Hold Shift over a stack to show its total value."])
 end
@@ -667,6 +682,8 @@ function SlashCmdList.ORIBOSEXCHANGE(msg)
         ['age'] = 'age',
         ['market'] = 'market',
         ['region'] = 'region',
+        ['craft'] = 'craft',
+        ['crafting'] = 'craft',
 
         ['lastseen'] = 'lastSeen',
         ['last-seen'] = 'lastSeen',
@@ -678,6 +695,23 @@ function SlashCmdList.ORIBOSEXCHANGE(msg)
     if loweredMsg == 'whatsnew' or loweredMsg == 'news' then
         if addonTable.WhatsNew and addonTable.WhatsNew.Show then
             addonTable.WhatsNew.Show()
+        end
+        return
+    end
+
+    if loweredMsg == 'options' or loweredMsg == 'config' then
+        if addonTable.OpenOptions and addonTable.OpenOptions() then
+            return
+        end
+        print(prettyName .. " - " .. L["The settings panel is not available on this client."])
+        return
+    end
+
+    if loweredMsg == 'minimap' then
+        local shown = addonTable.minimapShown and addonTable.minimapShown()
+        if addonTable.setMinimapShown then
+            addonTable.setMinimapShown(not shown)
+            print(prettyName .. " - " .. ((not shown) and L["Minimap button shown."] or L["Minimap button hidden."]))
         end
         return
     end

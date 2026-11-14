@@ -32,3 +32,6 @@ Localization.lua
 Localization-ruRU.lua
 WhatsNew.lua
 OribosExchange.lua
+Crafting.lua
+Settings.lua
+MinimapButton.lua
