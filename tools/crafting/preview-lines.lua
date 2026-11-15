@@ -140,7 +140,6 @@ local function makePanel()
                 Show = function(l) l.shown = true end,
                 Hide = function(l) l.shown = false end,
             }
-            self.OECraftCostLine = line
             return line
         end,
     }
@@ -169,6 +168,9 @@ for _, r in ipairs(recipes) do
     if not (panel.OECraftCostLine and panel.OECraftCostLine.shown) then
         print('  (nothing shown)')
     else
+        if panel.OECraftCostTitle then
+            print('  ' .. readable(panel.OECraftCostTitle.text))
+        end
         for text in panel.OECraftCostLine.text:gmatch('[^\n]+') do
             print('  ' .. readable(text))
         end

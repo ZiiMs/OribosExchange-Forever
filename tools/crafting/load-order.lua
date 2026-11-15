@@ -138,6 +138,22 @@ end
 
 local addonTable = {}
 
+-- LibExtraTip stand-in: records tooltip lines and the callbacks the addon
+-- registers, so the tooltip text and colours can be inspected.
+local tooltipLines = {}
+local tooltipCallbacks = {}
+local libExtraTip = {
+    AddLine = function(_, tooltip, text, r, g, b)
+        tooltipLines[#tooltipLines + 1] = { text = text, r = r, g = g, b = b }
+    end,
+    AddDoubleLine = function() end,
+    AddCallback = function(_, callback)
+        tooltipCallbacks[#tooltipCallbacks + 1] = callback.callback or callback
+    end,
+    RegisterTooltip = function() end,
+    GetTooltipAdditional = function() return { quantity = 1 } end,
+}
+
 local env = {
     CreateFrame = CreateFrame,
     GameTooltip = { AddLine = function() end, AddDoubleLine = function() end, Show = function() end },
@@ -243,15 +259,7 @@ local env = {
     setmetatable = setmetatable,
     getmetatable = getmetatable,
     print = function() end,
-    LibStub = function()
-        return {
-            AddLine = function() end,
-            AddDoubleLine = function() end,
-            AddCallback = function() end,
-            RegisterTooltip = function() end,
-            GetTooltipAdditional = function() return { quantity = 1 } end,
-        }
-    end,
+    LibStub = function() return libExtraTip end,
 }
 env._G = env
 setmetatable(env, { __index = _G })
@@ -283,6 +291,10 @@ end
 
 -- What the client provides at run time.
 env.OEMarketInfo = function(itemID, out)
+    if addonTable.dataAge then
+        out.age = os.time() - addonTable.dataAge
+    end
+    out.days = 0
     if itemID == 2318 then
         out.input = itemID
         out.market = 500
@@ -310,6 +322,10 @@ check(type(addonTable.coins) == 'function', 'coins is missing')
 -- The panel hook is installed when the mixin first exists.
 env.ProfessionsRecipeSchematicFormMixin = { Init = function() end }
 env.ProfessionsUtil.IsCraftingMinimized = function() return false end
+
+-- The What's New panel needs real frames; mark it seen so the headless load
+-- goes straight to the tooltip registration.
+env.OEWhatsNewSeen = addonTable.WhatsNew and addonTable.WhatsNew.revision or 0
 
 -- Fire the events the module waits on, the way the client would.
 for _, frame in ipairs(frames) do
@@ -395,6 +411,13 @@ check(hooks['Init'] ~= nil, 'the recipe panel Init was not hooked')
 if hooks['Init'] then
     local panel = makePanel()
     hooks['Init'](panel, { recipeID = 2152 })
+    local title = panel.OECraftCostTitle
+    check(title ~= nil, 'no cost title was created')
+    if title then
+        check(title.shown, 'the cost title was not shown')
+        check(title.text:find('Oribos Exchange', 1, true) ~= nil,
+            'the title does not name the addon: ' .. tostring(title.text))
+    end
     local line = panel.OECraftCostLine
     check(line ~= nil, 'no cost line was created')
     if line then
@@ -411,23 +434,27 @@ if hooks['Init'] then
     local unknown = makePanel()
     hooks['Init'](unknown, { recipeID = 99999999 })
     check(unknown.OECraftCostLine == nil, 'an unknown recipe created a line')
+    check(unknown.OECraftCostTitle == nil, 'an unknown recipe created a title')
 
     -- A recraft: nothing drawn.
     local recraft = makePanel()
     recraft.isRecraft = true
     hooks['Init'](recraft, { recipeID = 2152 })
     check(recraft.OECraftCostLine == nil, 'a recraft created a line')
+    check(recraft.OECraftCostTitle == nil, 'a recraft created a title')
 
     -- No recipe selected: nothing drawn.
     local empty = makePanel()
     hooks['Init'](empty, nil)
     check(empty.OECraftCostLine == nil, 'an empty selection created a line')
+    check(empty.OECraftCostTitle == nil, 'an empty selection created a title')
 
     -- The preference toggle must silence it.
     addonTable.getTooltipsSettings()['disable-craft'] = true
     local off = makePanel()
     hooks['Init'](off, { recipeID = 2152 })
     check(off.OECraftCostLine == nil, 'disable-craft did not silence the line')
+    check(off.OECraftCostTitle == nil, 'disable-craft did not silence the title')
     addonTable.getTooltipsSettings()['disable-craft'] = nil
 
     -- OETooltip(false) must silence it too.
@@ -435,12 +462,14 @@ if hooks['Init'] then
     local hidden = makePanel()
     hooks['Init'](hidden, { recipeID = 2152 })
     check(hidden.OECraftCostLine == nil, 'OETooltip(false) did not silence the line')
+    check(hidden.OECraftCostTitle == nil, 'OETooltip(false) did not silence the title')
     env.OETooltip(true)
 
     -- And it must come back.
     local back = makePanel()
     hooks['Init'](back, { recipeID = 2152 })
     check(back.OECraftCostLine ~= nil, 'the line did not return after enabling')
+    check(back.OECraftCostTitle ~= nil, 'the title did not return after enabling')
 
     -- Toggling the coin style must redraw, not reuse the cached string.
     local coinSettings = addonTable.getTooltipsSettings()
@@ -452,26 +481,34 @@ if hooks['Init'] then
         'coin style change kept the cached string')
     coinSettings['text-coins'] = nil
 
-    -- The cost sits under the reagent list, not under the output name.
+    -- The title sits under the reagent list, not under the output name, and the
+    -- figures sit under the title.
     local withTools = makePanel()
     hooks['Init'](withTools, { recipeID = 2152 })
+    local placedTitle = withTools.OECraftCostTitle
+    check(placedTitle and #placedTitle.points == 1, 'the cost title was not anchored')
+    if placedTitle and #placedTitle.points == 1 then
+        local point = placedTitle.points[1]
+        check(point[2] == withTools.Reagents, 'the cost title is not under the reagents')
+        check(point[3] == 'BOTTOMLEFT', 'the cost title is not anchored to the bottom of the reagents')
+    end
     local placed = withTools.OECraftCostLine
     check(placed and #placed.points == 1, 'the cost line was not anchored')
     if placed and #placed.points == 1 then
         local point = placed.points[1]
-        check(point[2] == withTools.Reagents, 'the cost line is not under the reagents')
-        check(point[3] == 'BOTTOMLEFT', 'the cost line is not anchored to the bottom of the reagents')
+        check(point[2] == withTools.OECraftCostTitle, 'the cost line is not under the title')
+        check(point[3] == 'BOTTOMLEFT', 'the cost line is not anchored to the bottom of the title')
     end
 
-    -- A taller optional list must take the cost line with it.
+    -- A taller optional list must take the title, and so the figures, with it.
     local optional = makePanel()
     optional.OptionalReagents = makePanel().Reagents
     optional.OptionalReagents.shown = true
     optional.OptionalReagents.bottom = 300
     hooks['Init'](optional, { recipeID = 2152 })
-    check(optional.OECraftCostLine and optional.OECraftCostLine.points[1]
-        and optional.OECraftCostLine.points[1][2] == optional.OptionalReagents,
-        'the cost line did not follow the optional reagents')
+    check(optional.OECraftCostTitle and optional.OECraftCostTitle.points[1]
+        and optional.OECraftCostTitle.points[1][2] == optional.OptionalReagents,
+        'the cost title did not follow the optional reagents')
 
     -- The tool list must be left where Blizzard put it: the cost now lives
     -- below the reagents, so nothing is competing for that space any more.
@@ -489,15 +526,69 @@ if hooks['Init'] then
     sparse.FinishingReagents.shown = true
     sparse.FinishingReagents.bottom = 200
     hooks['Init'](sparse, { recipeID = 2152 })
-    check(sparse.OECraftCostLine and sparse.OECraftCostLine.points[1]
-        and sparse.OECraftCostLine.points[1][2] == sparse.FinishingReagents,
+    check(sparse.OECraftCostTitle and sparse.OECraftCostTitle.points[1]
+        and sparse.OECraftCostTitle.points[1][2] == sparse.FinishingReagents,
         'a form without a basic list did not fall back to the finishing list')
 
-    -- Once hidden, the same panel must hide its line again.
+    -- Once hidden, the same panel must hide its line and title again.
     withTools.isRecraft = true
     hooks['Init'](withTools, { recipeID = 2152 })
     check(not withTools.OECraftCostLine.shown, 'the line was left showing after a recraft')
+    check(not withTools.OECraftCostTitle.shown, 'the title was left showing after a recraft')
 end
+
+-- ---------------------------------------------------------------------------
+-- Tooltips: every item shows the data age, coloured by how old the file is
+-- ---------------------------------------------------------------------------
+local itemCallback = tooltipCallbacks[1]
+check(itemCallback ~= nil, 'the tooltip callback was not registered')
+
+local function drawTooltip(ageSeconds)
+    if not itemCallback then return nil end
+    tooltipLines = {}
+    addonTable.dataAge = os.time() - ageSeconds
+    itemCallback({}, 2318, 1)
+    for _, line in ipairs(tooltipLines) do
+        if line.text:find('As of', 1, true) then return line end
+    end
+    return nil
+end
+
+local fresh = drawTooltip(60)
+check(fresh ~= nil, 'fresh data has no age line')
+if fresh then
+    check(fresh.r == .2 and fresh.g == 1 and fresh.b == .2, 'fresh data is not green')
+end
+
+-- A clock slightly ahead of the build time must not show a negative age.
+local future = drawTooltip(-60)
+check(future ~= nil, 'a negative age has no age line')
+if future then
+    check(future.r == .2 and future.g == 1 and future.b == .2, 'a negative age is not clamped to green')
+end
+
+local day = drawTooltip(12 * 60 * 60)
+check(day ~= nil, 'day-old data has no age line')
+if day then
+    check(day.r == 1 and day.g == .85 and day.b == .2, 'day-old data is not yellow')
+end
+
+local stale = drawTooltip(2 * 24 * 60 * 60)
+check(stale ~= nil, 'stale data has no age line')
+if stale then
+    check(stale.r == 1 and stale.g == .55 and stale.b == .1, 'stale data is not orange')
+end
+
+local old = drawTooltip(4 * 24 * 60 * 60)
+check(old ~= nil, 'very old data has no age line')
+if old then
+    check(old.r == 1 and old.g == .2 and old.b == .2, 'very old data is not red')
+end
+
+-- /oetooltip age must still switch the line off.
+addonTable.getTooltipsSettings()['disable-age'] = true
+check(drawTooltip(60) == nil, 'disable-age did not silence the age line')
+addonTable.getTooltipsSettings()['disable-age'] = nil
 
 if failures > 0 then
     io.stderr:write(string.format('\n%d failure(s)\n', failures))

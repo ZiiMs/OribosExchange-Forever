@@ -9,6 +9,7 @@ This is a port of the retail addon by **Erorus**. The original addon is built fo
 - Auction-house prices in item tooltips, outside the auction house too.
 - Separate prices for every Forever auction house: `PvP`, `Normal`, `Roleplay`, `Roleplay PvP` × `Alliance`, `Horde`, `Neutral`.
 - Region median line and auction-house line.
+- The age of the price data appears on every item tooltip, coloured green while fresh, yellow and orange as it ages, and red once it is more than three days old. `/oetooltip age` hides it.
 - Hold **Shift** while hovering a stack to see the **total value of the stack** instead of the per-item price: the realm and region lines are multiplied by the stack size and marked `xN` (for example `Realm x20`). The line updates when Shift is pressed or released without re-hovering.
 - A **What's New** panel opens once after a feature or fix release, with icons and a small preview. Data-only price refreshes skip the panel and print the sync status in chat instead.
 - **Crafting cost** in the profession window: select a recipe and the panel shows the reagent cost at auction-house prices, the item's value after the 5% cut, and the profit with its percentage, just below the reagent list. Reagents with no listing are marked, and the profit is left out rather than guessed.

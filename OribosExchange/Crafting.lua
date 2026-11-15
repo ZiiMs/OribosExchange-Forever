@@ -273,8 +273,15 @@ local function lowestReagentContainer(form)
     return lowest
 end
 
--- Draw the cost under the reagents. It updates with the selection, so there is
--- nothing to hover.
+-- Hide the whole block: the addon name and the figures.
+local function hideCost(form)
+    if form.OECraftCostTitle then form.OECraftCostTitle:Hide() end
+    if form.OECraftCostLine then form.OECraftCostLine:Hide() end
+end
+
+-- Draw the cost under the reagents, titled with the addon's name in small
+-- faded text so the numbers say who added them. It updates with the selection,
+-- so there is nothing to hover.
 local function showCost(form, recipeID)
     local text
     if not settings()['disable-craft'] and addonTable.marketData then
@@ -283,12 +290,21 @@ local function showCost(form, recipeID)
         end
     end
 
-    local line = form.OECraftCostLine
     if not text then
-        if line then line:Hide() end
+        hideCost(form)
         return
     end
 
+    local title = form.OECraftCostTitle
+    if not title then
+        title = form:CreateFontString(nil, 'ARTWORK', 'GameFontNormalSmall')
+        title:SetJustifyH('LEFT')
+        title:SetJustifyV('TOP')
+        title:SetText(DIM .. L["Oribos Exchange"] .. RESET)
+        form.OECraftCostTitle = title
+    end
+
+    local line = form.OECraftCostLine
     if not line then
         line = form:CreateFontString(nil, 'ARTWORK', 'GameFontNormal')
         line:SetJustifyH('LEFT')
@@ -297,17 +313,22 @@ local function showCost(form, recipeID)
     end
 
     local minimized = ProfessionsUtil and ProfessionsUtil.IsCraftingMinimized and ProfessionsUtil.IsCraftingMinimized()
-    line:SetWidth(minimized and 250 or 300)
+    local width = minimized and 250 or 300
+    title:SetWidth(width)
+    line:SetWidth(width)
     line:SetText(text)
 
     local anchorTo = lowestReagentContainer(form)
+    title:ClearAllPoints()
     line:ClearAllPoints()
     if anchorTo then
-        line:SetPoint('TOPLEFT', anchorTo, 'BOTTOMLEFT', 0, -10)
+        title:SetPoint('TOPLEFT', anchorTo, 'BOTTOMLEFT', 0, -10)
     else
         -- A recipe with no reagent list still gets the numbers, under the name.
-        line:SetPoint('TOPLEFT', form.OutputText, 'BOTTOMLEFT', 0, -4)
+        title:SetPoint('TOPLEFT', form.OutputText, 'BOTTOMLEFT', 0, -4)
     end
+    line:SetPoint('TOPLEFT', title, 'BOTTOMLEFT', 0, -1)
+    title:Show()
     line:Show()
 end
 
@@ -322,12 +343,8 @@ local function hookPanel()
 
     panelHooked = true
     hooksecurefunc(mixin, 'Init', function(form, recipeInfo)
-        if not recipeInfo then
-            if form.OECraftCostLine then form.OECraftCostLine:Hide() end
-            return
-        end
-        if form.isRecraft then
-            if form.OECraftCostLine then form.OECraftCostLine:Hide() end
+        if not recipeInfo or form.isRecraft then
+            hideCost(form)
             return
         end
         showCost(form, recipeInfo.recipeID)
