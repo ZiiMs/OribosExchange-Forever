@@ -170,6 +170,20 @@ for _, r in ipairs(recipes) do
     }
 end
 
+-- A recipe whose schematic the client only hands over once its profession is
+-- open. The retry check below uses it.
+local gatedSpell = 7654321
+schema[gatedSpell] = {
+    recipeID = gatedSpell,
+    outputItemID = 0,
+    quantityMin = 1,
+    quantityMax = 1,
+    reagentSlotSchematics = {
+        { reagentType = 1, required = true, quantityRequired = 2, reagents = { { itemID = recipes[1].parts[1][1] } } },
+    },
+}
+local schematicsVisible = true
+
 local lines = {}
 local tooltip = {
     AddDoubleLine = function(self, left, right) lines[#lines + 1] = { left, right } end,
@@ -180,6 +194,7 @@ local env = setmetatable({
     Enum = { CraftingReagentType = { Modifying = 0, Basic = 1, Finishing = 2, Automatic = 3 } },
     C_TradeSkillUI = {
         GetRecipeSchematic = function(recipeID)
+            if not schematicsVisible then return nil end
             return schema[recipeID]
         end,
     },
@@ -306,6 +321,17 @@ end
 -- A recipe the client has no schematic for: the profession is not open.
 if OECraftCost(99999999, {}) ~= false then fail('unknown recipe should return false') end
 if OECraftCost('nope', {}) ~= false then fail('non-numeric recipe should return false') end
+-- A miss is only true for that call: opening the profession can produce the
+-- schematic, so the next call must find it rather than a remembered failure.
+schematicsVisible = false
+if OECraftCost(gatedSpell, {}) ~= false then fail('a recipe without a schematic returned data') end
+schematicsVisible = true
+do
+    local retried = OECraftCost(gatedSpell, {})
+    if not (retried and retried.total == 1) then
+        fail('a schematic that appeared stayed unavailable')
+    end
+end
 -- A cost of zero must not divide by zero for roi.
 do
     local craft = OECraftCost(recipes[1].spell, {})

@@ -8,6 +8,11 @@
 - A **What's New** panel opens once after a feature or fix release, with cards, icons and a stack-value preview. Data-only price refreshes leave the panel closed.
 - Login chat now reports when the auction-house data was last synced and when the next sync is due.
 - `/oetooltip whatsnew` reopens the What's New panel.
+- The crafting cost block in the profession window now carries a small, faded **Oribos Exchange** title so it is clear which addon adds the numbers.
+- Item tooltips now always show how old the price data is, coloured green while fresh, yellow and orange as it ages, and red once it is more than three days old. `/oetooltip age` still hides the line.
+- The crafting cost line no longer goes missing for the rest of the session when another add-on asks for a recipe before its profession is open. A schematic the client does not have yet is asked for again on the next lookup instead of being remembered as unavailable.
+- The minimap button now stays under the cursor while dragged when the UI scale is not 1, instead of jumping away because the cursor and the minimap were compared in different coordinate spaces.
+- Turning **Show prices in tooltips** back on in the options page now re-enables the line checkboxes immediately, instead of leaving them greyed out until the panel is reopened.
 
 ## 1.3.20261106-forever2
 

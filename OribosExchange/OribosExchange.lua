@@ -422,6 +422,23 @@ local LibExtraTip = LibStub("LibExtraTip-1")
 local regionName = L["Regional"]
 local realmName = L["Realm"]
 
+-- The data refreshes hourly, so the age line runs from green while a refresh is
+-- expected on time, through yellow and orange, to red for data days old.
+local AGE_TIERS = {
+    { 3 * 60 * 60, .2, 1, .2 },         -- green: within the refresh window
+    { 24 * 60 * 60, 1, .85, .2 },       -- yellow: a day without an update
+    { 3 * 24 * 60 * 60, 1, .55, .1 },   -- orange: getting stale
+}
+
+local function ageColor(age)
+    for _, tier in ipairs(AGE_TIERS) do
+        if age <= tier[1] then
+            return tier[2], tier[3], tier[4]
+        end
+    end
+    return 1, .2, .2 -- red: days without an update
+end
+
 -- Stack size passed by LibExtraTip for the tooltip's item, as a positive whole number.
 local function stackQuantity(quantity)
     if issecretvalue and issecretvalue(quantity) then return 1 end
@@ -451,8 +468,13 @@ local function buildExtraTip(tooltip, pricingData, quantity)
 
     LibExtraTip:AddLine(tooltip," ",r,g,b,true)
 
-    if (pricingData['age'] > 3*24*60*60) and not tooltipsSettings['disable-age'] then
-        LibExtraTip:AddLine(tooltip,L["As of %s ago:"]:format(SecondsToTime(pricingData['age'],pricingData['age']>60)),r,g,b,true)
+    -- Every tooltip carries the age of the prices, coloured so a stale data
+    -- file stands out instead of quietly showing old numbers.
+    local age = tonumber(pricingData['age'])
+    if age and age < 0 then age = 0 end
+    if age and not tooltipsSettings['disable-age'] then
+        local ar, ag, ab = ageColor(age)
+        LibExtraTip:AddLine(tooltip, L["As of %s ago:"]:format(SecondsToTime(age, age > 60)), ar, ag, ab, true)
     end
 
     -- Holding Shift prices the whole stack instead of a single item.

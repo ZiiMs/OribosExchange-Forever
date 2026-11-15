@@ -71,9 +71,10 @@ local function setCoinText(on)
 end
 
 -- ---------------------------------------------------------------------------
--- A small checkbox in the addon's own colours.
+-- A small checkbox in the addon's own colours. onChanged runs after the click
+-- has stored the new value, for a checkbox that other controls depend on.
 -- ---------------------------------------------------------------------------
-local function createCheckbox(parent, label, getter, setter)
+local function createCheckbox(parent, label, getter, setter, onChanged)
     local button = CreateFrame('Button', nil, parent)
     button:SetHeight(22)
     button:SetPoint('LEFT')
@@ -122,6 +123,7 @@ local function createCheckbox(parent, label, getter, setter)
     button:SetScript('OnClick', function(self)
         self.setter(not self.getter())
         self:Refresh()
+        if onChanged then onChanged(self) end
     end)
 
     function button:SetEnabledState(enabled)
@@ -158,8 +160,11 @@ local function buildPage()
     subtitle:SetText(L["Auction-house prices in item tooltips, using Blizzard's Forever auction data."])
     subtitle:SetTextColor(C.dim[1], C.dim[2], C.dim[3])
 
-    -- Tooltip additions on/off, which is what OETooltip() reports.
-    local master = createCheckbox(page, L["Show prices in tooltips"], tooltipAdditionOn, setTooltipAddition)
+    -- Tooltip additions on/off, which is what OETooltip() reports. The line
+    -- checkboxes depend on it, so flipping it refreshes the page: they must
+    -- follow at once rather than when the panel is next opened.
+    local master = createCheckbox(page, L["Show prices in tooltips"], tooltipAdditionOn,
+        setTooltipAddition, function() page:Refresh() end)
     master:SetPoint('TOPLEFT', subtitle, 'BOTTOMLEFT', 0, -18)
     master:SetPoint('RIGHT', -16, 0)
     refreshers[#refreshers + 1] = master
