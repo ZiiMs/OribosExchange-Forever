@@ -40,15 +40,20 @@ Pass a data file as the second argument to check another region or house
 
 It also checks the edges: a recipe the client has no schematic for returns
 `false`, a non-numeric recipe returns `false`, and a zero-cost craft reports no
-ROI instead of dividing by zero.
+ROI instead of dividing by zero. A recipe whose schematic only appears once its
+profession is open must be found by the next call, not remembered as `false`.
 
 ## `load-order.lua`
 
 Loads the addon's files in `.toc` order against stubs and exercises the crafting
 feature: the panel hook draws the text, it follows the lowest reagent list, an
 unknown recipe and a recraft draw nothing, `disable-craft` silences it, and so
-does `OETooltip(false)`. This catches a helper read before the file that defines
-it, which a per-file lint cannot.
+does `OETooltip(false)`. A recipe the client only gains a schematic for once its
+profession is open draws on the next panel init. It also drags the minimap
+button at a non-unit UI scale, which catches an angle measured in mixed
+coordinate spaces, and flips the options page's master toggle to check that the
+line checkboxes enable and disable with it at once. This catches a helper read
+before the file that defines it, which a per-file lint cannot.
 
 ```sh
 luajit tools/crafting/load-order.lua

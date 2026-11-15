@@ -67,8 +67,9 @@ local function CreateFrame(kind, name)
         SetFrameStrata = function() end,
         SetAlpha = function() end,
         SetShown = function() end,
-        Enable = function() end,
-        Disable = function() end,
+        Enable = function(self) self.enabled = true end,
+        Disable = function(self) self.enabled = false end,
+        IsEnabled = function(self) return self.enabled ~= false end,
         RegisterForClicks = function() end,
         RegisterForDrag = function() end,
         RegisterEvent = function(self, e) self.events[e] = true end,
@@ -138,6 +139,10 @@ end
 
 local addonTable = {}
 
+-- The client only hands over a recipe's schematic while its profession is open.
+-- The retry check flips this to imitate opening it.
+local professionOpen = true
+
 -- LibExtraTip stand-in: records tooltip lines and the callbacks the addon
 -- registers, so the tooltip text and colours can be inspected.
 local tooltipLines = {}
@@ -171,6 +176,18 @@ local env = {
     end,
     C_TradeSkillUI = {
         GetRecipeSchematic = function(recipeID)
+            if recipeID == 4000 then
+                if not professionOpen then return nil end
+                return {
+                    recipeID = 4000,
+                    outputItemID = 2304,
+                    quantityMin = 1,
+                    quantityMax = 1,
+                    reagentSlotSchematics = {
+                        { reagentType = 1, required = true, quantityRequired = 1, reagents = { { itemID = 2318 } } },
+                    },
+                }
+            end
             if recipeID == 2152 then
                 return {
                     recipeID = 2152,
@@ -397,6 +414,43 @@ page.OnDefault()
 check(addonTable.getTooltipsSettings()['disable-market'] == nil, 'OnDefault left a line disabled')
 check(addonTable.getTooltipsSettings()['text-coins'] == nil, 'OnDefault left the coin style changed')
 
+-- The master toggle decides whether the line checkboxes can be used. Changing
+-- it must update them at once: the user turns prices back on to edit the lines,
+-- not to close and reopen the panel.
+local pageIndex
+for i, widget in ipairs(frames) do
+    if widget == page then pageIndex = i break end
+end
+check(pageIndex ~= nil, 'the settings page was not created as a frame')
+
+local masterBox, lineBoxes = nil, {}
+if pageIndex then
+    -- The page creates its checkboxes after itself: master, five lines, coins,
+    -- minimap.
+    masterBox = frames[pageIndex + 1]
+    for i = 2, 6 do lineBoxes[#lineBoxes + 1] = frames[pageIndex + i] end
+end
+check(masterBox ~= nil, 'the master checkbox was not created')
+check(#lineBoxes == 5, 'the page did not create five line checkboxes (' .. #lineBoxes .. ')')
+
+if masterBox and #lineBoxes == 5 then
+    env.OETooltip(false)
+    page:Refresh()
+    check(not lineBoxes[1]:IsEnabled(), 'the lines stayed usable while tooltip prices were off')
+
+    masterBox.scripts.OnClick(masterBox)
+    check(env.OETooltip() == true, 'the master toggle did not turn tooltip prices on')
+    check(lineBoxes[1]:IsEnabled(), 'the line controls stayed disabled after prices were turned on')
+    check(lineBoxes[5]:IsEnabled(), 'not every line control followed the master toggle')
+
+    masterBox.scripts.OnClick(masterBox)
+    check(env.OETooltip() == false, 'the master toggle did not turn tooltip prices off')
+    check(not lineBoxes[1]:IsEnabled(), 'the line controls stayed enabled after prices were turned off')
+
+    env.OETooltip(true)
+    page:Refresh()
+end
+
 -- The minimap button: shown by default, hideable, and remembered.
 check(addonTable.minimapShown() == true, 'the minimap button is hidden by default')
 addonTable.setMinimapShown(false)
@@ -405,6 +459,37 @@ check(addonTable.getTooltipsSettings()['hideMinimap'] == true, 'the hide flag wa
 addonTable.setMinimapShown(true)
 check(addonTable.minimapShown() == true, 'showing the minimap button was not remembered')
 check(addonTable.getTooltipsSettings()['hideMinimap'] == nil, 'the hide flag was not cleared')
+
+-- Dragging around a scaled UI: the cursor and the minimap center only agree
+-- once the cursor is brought into the minimap's effective scale. UIParent's own
+-- scale alone cancels the scaling the minimap inherits, and the button jumps
+-- away from the cursor.
+local minimapButton
+for _, frame in ipairs(frames) do
+    if frame.name == 'OribosExchangeMinimapButton' then minimapButton = frame end
+end
+check(minimapButton ~= nil, 'the minimap button was not created')
+
+if minimapButton and minimapButton.scripts.OnDragStart then
+    -- Everything at half scale. The center is (100, 100) in the minimap's own
+    -- coordinates; a cursor one radius to its right is (175, 100) there, which
+    -- is (87.5, 50) on screen.
+    env.Minimap.GetCenter = function() return 100, 100 end
+    env.Minimap.GetEffectiveScale = function() return .5 end
+    env.UIParent.GetEffectiveScale = function() return .5 end
+    minimapButton.GetEffectiveScale = function() return .5 end
+    env.GetCursorPosition = function() return 87.5, 50 end
+
+    minimapButton.scripts.OnDragStart(minimapButton)
+    check(type(minimapButton.scripts.OnUpdate) == 'function', 'a drag did not start following the cursor')
+    if minimapButton.scripts.OnUpdate then
+        minimapButton.scripts.OnUpdate(minimapButton)
+        check(minimapButton.angle and math.abs(minimapButton.angle) < 1e-6,
+            'the drag angle ignored the minimap scale: ' .. tostring(minimapButton.angle))
+    end
+    minimapButton.scripts.OnDragStop(minimapButton)
+    check(addonTable.getTooltipsSettings().minimapAngle ~= nil, 'the drag angle was not stored')
+end
 
 check(hooks['Init'] ~= nil, 'the recipe panel Init was not hooked')
 
@@ -435,6 +520,27 @@ if hooks['Init'] then
     hooks['Init'](unknown, { recipeID = 99999999 })
     check(unknown.OECraftCostLine == nil, 'an unknown recipe created a line')
     check(unknown.OECraftCostTitle == nil, 'an unknown recipe created a title')
+
+    -- That miss is only true for that call: opening the profession gives the
+    -- client the schematic, so a retry must find it rather than a remembered
+    -- failure, both in the numbers and in the drawn line.
+    professionOpen = false
+    check(env.OECraftCost(4000, {}) == false, 'a recipe without a schematic returned data')
+    local early = makePanel()
+    hooks['Init'](early, { recipeID = 4000 })
+    check(early.OECraftCostLine == nil, 'a panel drew before the schematic existed')
+
+    professionOpen = true
+    local retried = {}
+    check(env.OECraftCost(4000, retried) ~= false, 'a schematic that appeared stayed unavailable')
+    check(retried.cost == 500, 'the retried schematic was not priced')
+    local opened = makePanel()
+    hooks['Init'](opened, { recipeID = 4000 })
+    check(opened.OECraftCostLine ~= nil, 'the panel kept the cached miss after the schematic appeared')
+    if opened.OECraftCostLine then
+        check(opened.OECraftCostLine.text:find('500', 1, true) ~= nil,
+            'the retried panel line has no cost: ' .. tostring(opened.OECraftCostLine.text))
+    end
 
     -- A recraft: nothing drawn.
     local recraft = makePanel()

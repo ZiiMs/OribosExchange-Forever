@@ -36,7 +36,8 @@ Other addons can query it:
 
 OECraftCost returns false when the client has no schematic for the recipe, which
 is the case for a recipe whose profession is not open. That tells a caller "no
-data" apart from "free".
+data" apart from "free". The answer is not remembered: the client can gain the
+schematic later, so the next call asks again.
 
 ]]
 
@@ -97,7 +98,10 @@ local function craftFor(recipeID)
 
     local ok, schematic = pcall(C_TradeSkillUI.GetRecipeSchematic, recipeID, false)
     if not (ok and schematic and schematic.reagentSlotSchematics) then
-        crafts[recipeID] = false
+        -- The client only knows a recipe while its profession is open, so a
+        -- miss now may be a schematic a moment later. Remembering it would keep
+        -- OECraftCost false until the price data changes, so it is not cached
+        -- and the next call asks again.
         return nil
     end
 
@@ -211,7 +215,10 @@ local function drawnFor(recipeID)
     local craft = craftFor(recipeID)
     -- Nothing priced at all is not a free craft, it is an unknown one.
     if not (craft and craft.total > 0 and craft.priced > 0) then
-        drawnLines[recipeID] = false
+        -- A missing schematic is only missing until the profession opens, so
+        -- that blank is not remembered either; a craft the client did hand
+        -- over will not change without the price data.
+        if craft then drawnLines[recipeID] = false end
         return nil
     end
 

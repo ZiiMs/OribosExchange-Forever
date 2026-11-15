@@ -36,7 +36,11 @@ end
 local function followCursor(f)
     local mx, my = Minimap:GetCenter()
     if not (mx and my) then return end
-    local scale = f:GetEffectiveScale() / UIParent:GetEffectiveScale()
+    -- GetCursorPosition is in screen pixels, GetCenter in the minimap's own
+    -- coordinates, so the cursor is brought into the minimap's space with its
+    -- full effective scale. UIParent's scale alone would cancel the scaling the
+    -- minimap inherits, and the angle would be measured between two spaces.
+    local scale = Minimap:GetEffectiveScale()
     local cx, cy = GetCursorPosition()
     cx, cy = cx / scale, cy / scale
     f.angle = math.deg(math.atan2(cy - my, cx - mx))
